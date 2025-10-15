@@ -1,10 +1,90 @@
-# 🔒 AI Security System - Streamlit Dashboard
-
-A beautiful AI-powered security dashboard with real-time threat detection, weapon identification, and live camera monitoring built with Streamlit.
+# 310-Ai-Security-System
 
 ![Python](https://img.shields.io/badge/Python-3.7%2B-blue)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.28%2B-red)
 ![YOLOv8](https://img.shields.io/badge/YOLOv8-Detection-green)
+
+An AI-powered security dashboard with real-time threat detection, weapon identification, and live camera monitoring built with Streamlit.
+
+# Project Setup Guide
+
+This guide explains how to set up a Python virtual environment for this project and how to activate it on different operating systems.
+
+---
+
+## 1. Create a Virtual Environment
+
+Run the following command to create a virtual environment named `.venv`:
+
+```bash
+python -m venv .venv
+```
+
+---
+
+## 2. Activate the Virtual Environment
+
+### On **Windows (PowerShell)**
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+### On **Windows (Command Prompt)**
+```cmd
+.venv\Scripts\activate.bat
+```
+
+### On **macOS / Linux (Bash/Zsh)**
+```bash
+source .venv/bin/activate
+```
+
+---
+
+## 3. Deactivate the Virtual Environment
+
+To deactivate, simply run:
+
+```bash
+deactivate
+```
+
+---
+
+## 4. Git Ignore Configuration
+
+A `.gitignore` file is included to ensure the virtual environment is not committed to version control.
+
+```
+.venv/
+```
+
+---
+
+## 5. Installing Dependencies
+
+Once the virtual environment is active, install dependencies with:
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 6. Freezing Dependencies
+
+To save newly installed packages into `requirements.txt`:
+
+```bash
+pip freeze > requirements.txt
+```
+
+
+*prospective updates to readme below*
+
+# 🔒 AI Security System - Streamlit Dashboard
+
+
 
 ## 🌟 Features
 
@@ -331,15 +411,6 @@ The system can detect 80+ objects from the COCO dataset, including:
 └──────────────────┘
 ```
 
-## 🤝 Contributing
-
-Contributions welcome! To contribute:
-1. Fork the repository
-2. Create a feature branch
-3. Make your improvements
-4. Test thoroughly
-5. Submit a pull request
-
 ## 📄 License
 
 This project is licensed under the MIT License.
@@ -350,17 +421,6 @@ This project is licensed under the MIT License.
 - **Ultralytics YOLOv8** - State-of-the-art object detection
 - **OpenCV** - Computer vision library
 - **COCO Dataset** - Training data for object detection
-
-## 📬 Support
-
-For issues or questions:
-- Check this README thoroughly
-- Review the troubleshooting section
-- Create an issue on GitHub with:
-  - Your Python version
-  - Operating system
-  - Error messages
-  - Steps to reproduce
 
 ## 🎯 Keyboard Shortcuts
 
@@ -375,17 +435,6 @@ To update dependencies:
 ```bash
 pip install --upgrade streamlit ultralytics opencv-python
 ```
-
-## 📈 Performance Metrics
-
-Expected performance:
-- **Camera FPS**: 25-30 FPS
-- **Detection FPS**: 10-20 FPS (hardware dependent)
-- **UI Update**: Real-time
-- **Model Inference**: 30-100ms per frame
-- **RAM Usage**: 1-2GB
-- **CPU Usage**: 30-60% (single core)
-
 ---
 
 ## Quick Command Summary
