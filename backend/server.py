@@ -21,7 +21,7 @@ async def broadcast(message):
     if CONNECTED_CLIENTS:
         websockets.broadcast(CONNECTED_CLIENTS, message)
 
-async def connection_handler(websocket, path):
+async def connection_handler(websocket):
     """
     Handles a new WebSocket connection. It registers the client,
     listens for incoming messages, and unregisters on disconnection.
