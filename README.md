@@ -1,7 +1,6 @@
 # 310-Ai-Security-System
 
 ![Python](https://img.shields.io/badge/Python-3.7%2B-blue)
-![Streamlit](https://img.shields.io/badge/Streamlit-1.28%2B-red)
 ![YOLOv8](https://img.shields.io/badge/YOLOv8-Detection-green)
 
 An AI-powered security dashboard with real-time threat detection, weapon identification, and live camera monitoring built with Streamlit.
@@ -79,11 +78,31 @@ To save newly installed packages into `requirements.txt`:
 pip freeze > requirements.txt
 ```
 
+---
+
+
+## 7. Run server
+
+To start the WebSocket server, run:
+
+```bash
+python backend/server.py
+```
+
+---
+
+
+## 8. Run frontend with tkinter
+
+To start the Tkinter frontend, run:
+
+```bash
+python app.py
+```
 
 *prospective updates to readme below*
 
 # 🔒 AI Security System - Streamlit Dashboard
-
 
 
 ## 🌟 Features
