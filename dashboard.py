@@ -1,43 +1,9 @@
-#!/usr/bin/env python3
-"""
-AI Security System - Streamlit Dashboard modern UI for real-time threat detection and monitoring
-"""
-
 import streamlit as st
 import cv2
 import numpy as np
 from datetime import datetime
 import time
 from PIL import Image
-import websocket
-from streamlit_autorefresh import st_autorefresh
-
-# Initialize session state
-if "ws_connected" not in st.session_state:
-    st.session_state.ws_connected = False
-if "ws" not in st.session_state:
-    st.session_state.ws = None
-if "last_message" not in st.session_state:
-    st.session_state.last_message = None
-
-# Connect to WebSocket (non-blocking)
-if st.session_state.ws is None:
-    st.session_state.ws = websocket.WebSocket()
-    try:
-        st.session_state.ws.connect("ws://localhost:8765", timeout=1)
-        print("websocket connected")
-        st.session_state.ws_connected = True
-    except:
-        st.session_state.ws_connected = False
-
-# Poll for messages
-if st.session_state.ws_connected:
-    try:
-        msg = st.session_state.ws.recv()  # non-blocking if you set timeout
-        if msg:
-            st.session_state.last_message = msg
-    except websocket.WebSocketTimeoutException:
-        pass  # no new messages, continue
 
 # Page configuration
 st.set_page_config(
@@ -254,6 +220,8 @@ if 'people_count' not in st.session_state:
     st.session_state.people_count = 0
 if 'detected_weapons' not in st.session_state:
     st.session_state.detected_weapons = []
+if 'frame' not in st.session_state:
+    st.session_state.frame = None
 
 def get_threat_color(level):
     """Get color based on threat level"""
@@ -282,21 +250,36 @@ def get_threat_status(level):
     else:
         return "CRITICAL", "status-critical"
 
+def camera_loop():
+    """Background thread to continuously capture frames"""
+    cap = cv2.VideoCapture(0)
+    
+    if not cap.isOpened():
+        st.session_state.camera_active = False
+        st.session_state.camera_thread_running = False
+        return
+    
+    # Give camera time to initialize
+    time.sleep(0.5)
+    
+    while st.session_state.get('camera_thread_running', False):
+        ret, frame = cap.read()
+        if ret:
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            st.session_state.frame = frame_rgb
+        time.sleep(0.03)  # ~30 FPS
+    
+    cap.release()
+    st.session_state.frame = None
 
 # Main UI
 def main():
-
-    # Refresh every 1000 ms (1 second)
-    # st_autorefresh(interval=1000, limit=None, key="ws_refresh")
-
-    status_text = "CONNECTED" if st.session_state.ws_connected else "DISCONNECTED"
-    status_class = "status-safe" if st.session_state.ws_connected else "status-critical"
 
     # HEADER
     st.markdown(f"""
     <div class="main-header">
         <h1 class="header-title">🔒 AI Security System</h1>
-        <span class="status-badge {status_class}">SYSTEM {status_text}</span>
+        <span class="status-badge">SYSTEM ACTIVE</span>
     </div>
     """, unsafe_allow_html=True)
     
@@ -316,23 +299,46 @@ def main():
         
         if start_camera:
             st.session_state.camera_active = True
+            time.sleep(0.2)  # Give thread time to capture first frame
         if stop_camera:
             st.session_state.camera_active = False
+            st.session_state.camera_thread_running = False
         
         # Video frame placeholder
         video_placeholder = st.empty()
         
         if st.session_state.camera_active:
+            # Check if thread actually exists and is alive
+            thread_alive = (
+                'camera_thread' in st.session_state and 
+                st.session_state.camera_thread is not None and 
+                st.session_state.camera_thread.is_alive()
+            )
             
-            print("camera active")
-            if st.session_state.last_message:
-                st.write(f"Last message: {st.session_state.last_message}")
-            #connect to websocket for camera request here
+            # Start camera thread only if it's not already running
+            if not thread_alive:
+                from threading import Thread
+                st.session_state.camera_thread_running = True
+                thread = Thread(target=camera_loop, daemon=True)
+                thread.start()
+                st.session_state.camera_thread = thread
+            
+            # Display the frame from session state
+            if st.session_state.frame is not None:
+                video_placeholder.image(st.session_state.frame, channels="RGB", use_container_width=True)
+            else:
+                # Show loading message while waiting for first frame
+                loading_img = np.zeros((480, 640, 3), dtype=np.uint8)
+                cv2.putText(loading_img, "Loading camera...", (200, 240),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                video_placeholder.image(loading_img, channels="RGB", use_container_width=True)
         else:
+            st.session_state.camera_thread_running = False
+            st.session_state.frame = None
             # Show placeholder image
             placeholder_img = np.zeros((480, 640, 3), dtype=np.uint8)
             cv2.putText(placeholder_img, "Click 'Start Camera' to begin", (100, 240),
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
             video_placeholder.image(placeholder_img, channels="RGB", use_container_width=True)
     
     with col2:
@@ -441,3 +447,7 @@ def main():
 if __name__ == "__main__":
     main()
 
+# Auto-refresh when camera is active
+if st.session_state.camera_active:
+    time.sleep(0.1)  # Change from 0.01 to 0.1
+    st.rerun()
