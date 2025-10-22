@@ -145,7 +145,7 @@ async def camera_loop():
                 for client in disconnected:
                     CONNECTED_CLIENTS.discard(client)
             
-            await asyncio.sleep(0.016)  # ~60 FPS
+            await asyncio.sleep(0.008)  # ~120 FPS
             
     finally:
         if cap:
