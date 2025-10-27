@@ -1,0 +1,13 @@
+# Dataset paths
+path: ../data  # dataset root dir
+train: images/train
+val: images/val
+
+# Number of classes
+nc: 3
+
+# Class names
+names:
+  0: person
+  1: weapon
+  2: object
