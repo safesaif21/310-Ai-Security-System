@@ -1,15 +1,8 @@
-#!/usr/bin/env python3
-"""
-AI Security System - Streamlit Dashboard
-Beautiful modern UI for real-time threat detection and monitoring
-"""
-
 import streamlit as st
 import cv2
 import numpy as np
 from datetime import datetime
 import time
-from human_detection_test import load_yolo_model
 from PIL import Image
 
 # Page configuration
@@ -20,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for beautiful styling
+# Custom CSS for styling
 st.markdown("""
 <style>
     /* Main theme */
@@ -227,96 +220,8 @@ if 'people_count' not in st.session_state:
     st.session_state.people_count = 0
 if 'detected_weapons' not in st.session_state:
     st.session_state.detected_weapons = []
-
-
-def load_model():
-    """Load YOLO model"""
-    if st.session_state.model is None:
-        with st.spinner('🔄 Loading AI Detection Model...'):
-            st.session_state.model = load_yolo_model("yolov8n.pt")
-    return st.session_state.model
-
-
-def calculate_threat_level(detections):
-    """Calculate threat level from 0-10"""
-    threat = 0
-    people = 0
-    weapons = []
-    
-    for detection in detections:
-        class_id = detection['class_id']
-        confidence = detection['confidence']
-        
-        if class_id == 0:  # person
-            people += 1
-        
-        if class_id in WEAPON_CLASSES:
-            weapon_name = WEAPON_CLASSES[class_id]
-            weapons.append({
-                'name': weapon_name,
-                'confidence': confidence
-            })
-            threat += 7
-    
-    # Add points for people count
-    if people >= 5:
-        threat += 2
-    elif people >= 3:
-        threat += 1
-    
-    return min(threat, 10), people, weapons
-
-
-def process_frame(frame, model):
-    """Process frame with YOLO detection"""
-    results = model(frame, verbose=False)
-    detections = []
-    
-    for result in results:
-        boxes = result.boxes
-        if boxes is not None:
-            for box in boxes:
-                class_id = int(box.cls)
-                confidence = float(box.conf)
-                
-                if confidence >= 0.5:
-                    x1, y1, x2, y2 = box.xyxy[0].tolist()
-                    detections.append({
-                        'class_id': class_id,
-                        'class_name': COCO_CLASSES.get(class_id, 'unknown'),
-                        'confidence': confidence,
-                        'bbox': [int(x1), int(y1), int(x2), int(y2)]
-                    })
-    
-    return detections
-
-
-def draw_detections(frame, detections):
-    """Draw bounding boxes on frame"""
-    for detection in detections:
-        x1, y1, x2, y2 = detection['bbox']
-        
-        # Determine color
-        if detection['class_id'] in WEAPON_CLASSES:
-            color = (0, 0, 255)  # Red for weapons
-        elif detection['class_id'] == 0:
-            color = (0, 255, 0)  # Green for people
-        else:
-            color = (255, 165, 0)  # Orange for others
-        
-        # Draw rectangle
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 3)
-        
-        # Draw label
-        label = f"{detection['class_name']}: {detection['confidence']:.2f}"
-        label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-        cv2.rectangle(frame, (x1, y1 - label_size[1] - 10), 
-                     (x1 + label_size[0], y1), color, -1)
-        cv2.putText(frame, label, (x1, y1 - 5), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-    
-    return frame
-
+if 'frame' not in st.session_state:
+    st.session_state.frame = None
 
 def get_threat_color(level):
     """Get color based on threat level"""
@@ -345,14 +250,36 @@ def get_threat_status(level):
     else:
         return "CRITICAL", "status-critical"
 
+def camera_loop():
+    """Background thread to continuously capture frames"""
+    cap = cv2.VideoCapture(0)
+    
+    if not cap.isOpened():
+        st.session_state.camera_active = False
+        st.session_state.camera_thread_running = False
+        return
+    
+    # Give camera time to initialize
+    time.sleep(0.5)
+    
+    while st.session_state.get('camera_thread_running', False):
+        ret, frame = cap.read()
+        if ret:
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            st.session_state.frame = frame_rgb
+        time.sleep(0.03)  # ~30 FPS
+    
+    cap.release()
+    st.session_state.frame = None
 
 # Main UI
 def main():
-    # Header
-    st.markdown("""
+
+    # HEADER
+    st.markdown(f"""
     <div class="main-header">
         <h1 class="header-title">🔒 AI Security System</h1>
-        <span class="status-badge status-safe">SYSTEM ACTIVE</span>
+        <span class="status-badge">SYSTEM ACTIVE</span>
     </div>
     """, unsafe_allow_html=True)
     
@@ -360,6 +287,7 @@ def main():
     col1, col2 = st.columns([2, 1])
     
     with col1:
+
         st.markdown("### 📹 Live Camera Feed")
         
         # Camera controls
@@ -371,86 +299,53 @@ def main():
         
         if start_camera:
             st.session_state.camera_active = True
+            time.sleep(0.2)  # Give thread time to capture first frame
         if stop_camera:
             st.session_state.camera_active = False
+            st.session_state.camera_thread_running = False
         
         # Video frame placeholder
         video_placeholder = st.empty()
         
         if st.session_state.camera_active:
-            # Load model
-            model = load_model()
+            # Check if thread actually exists and is alive
+            thread_alive = (
+                'camera_thread' in st.session_state and 
+                st.session_state.camera_thread is not None and 
+                st.session_state.camera_thread.is_alive()
+            )
             
-            if model:
-                # Open camera
-                cap = cv2.VideoCapture(0)
-                
-                if cap.isOpened():
-                    # Stats overlay on video
-                    stats_placeholder = st.empty()
-                    
-                    # Continuous frame processing
-                    frame_count = 0
-                    start_time = time.time()
-                    
-                    while st.session_state.camera_active:
-                        ret, frame = cap.read()
-                        if not ret:
-                            st.error("Failed to capture frame from camera")
-                            break
-                        
-                        # Process frame
-                        detections = process_frame(frame, model)
-                        
-                        # Calculate threat level
-                        threat, people, weapons = calculate_threat_level(detections)
-                        st.session_state.threat_level = threat
-                        st.session_state.people_count = people
-                        st.session_state.detected_weapons = weapons
-                        
-                        if weapons:
-                            st.session_state.alert_count += 1
-                        
-                        # Draw detections
-                        annotated_frame = draw_detections(frame.copy(), detections)
-                        
-                        # Add stats overlay
-                        fps = frame_count / (time.time() - start_time) if frame_count > 0 else 0
-                        cv2.putText(annotated_frame, f"Threat: {threat}/10", (10, 30),
-                                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                        cv2.putText(annotated_frame, f"People: {people}", (10, 70),
-                                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                        cv2.putText(annotated_frame, f"FPS: {fps:.1f}", (10, 110),
-                                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                        
-                        # Convert BGR to RGB
-                        rgb_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-                        
-                        # Display frame
-                        video_placeholder.image(rgb_frame, channels="RGB", use_container_width=True)
-                        
-                        frame_count += 1
-                        
-                        # Control frame rate
-                        time.sleep(0.03)  # ~30 FPS
-                    
-                    cap.release()
-                else:
-                    st.error("❌ Could not access camera. Please check permissions.")
+            # Start camera thread only if it's not already running
+            if not thread_alive:
+                from threading import Thread
+                st.session_state.camera_thread_running = True
+                thread = Thread(target=camera_loop, daemon=True)
+                thread.start()
+                st.session_state.camera_thread = thread
+            
+            # Display the frame from session state
+            if st.session_state.frame is not None:
+                video_placeholder.image(st.session_state.frame, channels="RGB", use_container_width=True)
             else:
-                st.error("❌ Failed to load detection model")
+                # Show loading message while waiting for first frame
+                loading_img = np.zeros((480, 640, 3), dtype=np.uint8)
+                cv2.putText(loading_img, "Loading camera...", (200, 240),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                video_placeholder.image(loading_img, channels="RGB", use_container_width=True)
         else:
+            st.session_state.camera_thread_running = False
+            st.session_state.frame = None
             # Show placeholder image
             placeholder_img = np.zeros((480, 640, 3), dtype=np.uint8)
             cv2.putText(placeholder_img, "Click 'Start Camera' to begin", (100, 240),
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
             video_placeholder.image(placeholder_img, channels="RGB", use_container_width=True)
     
     with col2:
         # Threat Level Display
         st.markdown("### ⚠️ Threat Level")
         
-        threat_level = st.session_state.threat_level
+        threat_level = 0 #get from websocket
         threat_color = get_threat_color(threat_level)
         status_text, status_class = get_threat_status(threat_level)
         
@@ -549,7 +444,10 @@ def main():
             </div>
             """, unsafe_allow_html=True)
 
-
 if __name__ == "__main__":
     main()
 
+# Auto-refresh when camera is active
+if st.session_state.camera_active:
+    time.sleep(0.1)  # Change from 0.01 to 0.1
+    st.rerun()

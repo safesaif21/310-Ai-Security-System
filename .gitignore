@@ -1,2 +1,6 @@
 .venv
 /images
+runs/
+.DS_Store
+data/images/
+data/labels/
