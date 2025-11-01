@@ -8,6 +8,8 @@ import base64
 import io
 import numpy as np
 
+num_of_cameras = 0  # Placeholder for number of cameras
+
 class SecuritySystemGUI:
     def __init__(self, root):
         self.root = root

@@ -191,6 +191,30 @@ async def camera_loop():
             cap.release()
         logging.info("Camera stopped")
 
+def detect_cameras():
+    """Detect available camera devices"""
+    index = 0
+    arr = []
+    while True:
+        cap = cv2.VideoCapture(index)
+        if not cap.read()[0]:
+            break
+        else:
+            arr.append(index)
+        cap.release()
+        index += 1
+    return arr
+
+try:
+    # Code that might raise an exception
+    result = 10 / 0  # This will cause a ZeroDivisionError
+except:
+    # Code to execute if any exception occurs in the try block
+    print("An error occurred!")
+
+available_cameras = detect_cameras()
+print("Available cameras:", len(available_cameras))
+
 async def handle_client(websocket):
     """Handle individual client connections"""
     global camera_active
@@ -219,6 +243,11 @@ async def handle_client(websocket):
                     'message': 'Camera stopped'
                 }))
                 logging.info("Camera stop command received")
+            elif data.get('command') == 'init':
+                await websocket.send(json.dumps({
+                    'cameras': available_cameras
+                }))
+                logging.info("Client initialization command received")
     
     except websockets.exceptions.ConnectionClosed:
         logging.info("Client disconnected unexpectedly")
@@ -232,24 +261,24 @@ async def handle_client(websocket):
         if len(CONNECTED_CLIENTS) == 0:
             camera_active = False
 
-async def main():
-    """Start the WebSocket server"""
+# async def main():
+#     """Start the WebSocket server"""
     
-    host = "localhost"
-    port = 8765
+#     host = "localhost"
+#     port = 8765
     
-    async with websockets.serve(
-        handle_client,
-        host,
-        port,
-        ping_interval=20,
-        ping_timeout=20
-    ):
-        logging.info(f"WebSocket server started at ws://{host}:{port}")
-        await asyncio.Future()
+#     async with websockets.serve(
+#         handle_client,
+#         host,
+#         port,
+#         ping_interval=20,
+#         ping_timeout=20
+#     ):
+#         logging.info(f"WebSocket server started at ws://{host}:{port}")
+#         await asyncio.Future()
 
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logging.info("Server shutting down...")
+# if __name__ == "__main__":
+#     try:
+#         asyncio.run(main())
+#     except KeyboardInterrupt:
+#         logging.info("Server shutting down...")
