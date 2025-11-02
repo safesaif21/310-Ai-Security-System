@@ -132,39 +132,31 @@ The system calculates threat levels based on:
 
 ## 📁 Project Structure
 
-```
-310-Ai-Security-System/
-├── frontend.py              # Tkinter frontend
-├── backedn.py               # Websocket backend
+## Project Structure
+
+310-AI-Security-System/
+├── backend.py               # WebSocket backend server (main backend)
+├── frontend.py              # Tkinter frontend UI (main frontend)
+├── dashboard.py             # Streamlit dashboard
+├── human_detection_test.py  # YOLOv8 script
 ├── requirements.txt         # Python dependencies
-├── yolov8n.pt               # default YOLOv8 model
-└── README.md                # This file
-```
-```
-310-Ai-Security-System/
-├── .venv/                          # Virtual environment
-├── data/                           # Dataset directory
-│   ├── images/
-│   │   ├── train/                 # Training images
-│   │   └── val/                   # Validation images
-│   ├── labels/
-│   │   ├── train/                 # Training labels (YOLO format)
-│   │   └── val/                   # Validation labels
-│   └── data.yaml                  # Dataset configuration
-├── scripts/                        # Training scripts
-│   ├── verify_dataset.py          # Verify dataset integrity
-│   ├── train_security.py          # Main training script
-│   ├── validate_model.py          # Validate trained model
-│   └── test_image.py              # Test on single images
-├── runs/                           # Training outputs (auto-created)
-│   └── detect/
-│       └── security_model/
-│           ├── weights/
-│           │   ├── best.pt        # Best model weights
-│           │   └── last.pt        # Last checkpoint
-│           └── results.csv        # Training metrics
-└── models/                         # Final trained models
-```
+├── YOLO_example_guide.md    # YOLO instructions
+├── yolov8n.pt               # Default YOLOv8 model
+├── README.md                # This file
+├── .gitignore               # Git ignore rules
+│
+├── data/
+│   └── data.yml             # Dataset configuration
+│
+├── scripts/                 # Training & evaluation scripts
+│   ├── verify_dataset.py    # Verify dataset integrity
+│   ├── train_security.py    # Main training script
+│   ├── validate_model.py    # Validate trained model
+│   └── test_image.py        # Test model on a single image
+│
+└── examples/                # Example usage scripts
+    └── example_usage.py     # Simple usage example
+
 
 ## 🎓 How It Works
 
