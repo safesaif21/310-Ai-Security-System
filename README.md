@@ -134,6 +134,7 @@ The system calculates threat levels based on:
 
 ## Project Structure
 
+```
 310-AI-Security-System/
 ├── backend.py               # WebSocket backend server (main backend)
 ├── frontend.py              # Tkinter frontend UI (main frontend)
@@ -156,7 +157,7 @@ The system calculates threat levels based on:
 │
 └── examples/                # Example usage scripts
     └── example_usage.py     # Simple usage example
-
+```
 
 ## 🎓 How It Works
 
