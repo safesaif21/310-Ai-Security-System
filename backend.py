@@ -13,13 +13,12 @@ logging.basicConfig(level=logging.INFO)
 
 # Global state
 CONNECTED_CLIENTS = set()
-camera_active = False
-cap = None
+ACTIVE_CAMERAS = {}  # {camera_id: task}
 model = YOLO("yolov8n.pt")
+num_of_cameras = 3
+# Detection memory per camera
+DETECTION_STATE = {}
 
-# Detection memory
-last_weapon_detected_time = None
-weapon_alert_active = False
 THREAT_DECAY_SECONDS = 5  # how long to keep high threat after last detection
 
 if (model):
@@ -30,13 +29,15 @@ else:
 def encode_frame(frame):
     """Encode frame to base64 for transmission"""
     _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-    jpg_as_text = base64.b64encode(buffer).decode('utf-8')
-    return jpg_as_text
+    return base64.b64encode(buffer).decode('utf-8')
 
-def detect_objects(frame):
+
+def detect_objects(frame, camera_id):
     """Run YOLO detection on frame"""
-    global last_weapon_detected_time, weapon_alert_active
-
+    state = DETECTION_STATE.setdefault(camera_id, {
+        'last_weapon_time': None,
+        'weapon_alert_active': False
+    })
     results = model(frame, verbose=False)
 
     detections = {
@@ -49,12 +50,10 @@ def detect_objects(frame):
     }
 
     weapon_classes = {43: 'Knife', 34: 'Baseball Bat', 76: 'Scissors'}
-
     weapon_found = False
 
     for result in results:
-        boxes = result.boxes
-        for box in boxes:
+        for box in result.boxes:
             cls = int(box.cls[0])
             conf = float(box.conf[0])
             x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().tolist()
@@ -84,23 +83,22 @@ def detect_objects(frame):
 
     now = time.time()
 
-    # If a weapon was seen this frame
+    # Alert logic per camera
     if weapon_found:
-        last_weapon_detected_time = now
-        if not weapon_alert_active:
+        state['last_weapon_time'] = now
+        if not state['weapon_alert_active']:
             detections['alert'] = "⚠️ Weapon detected!"
-            weapon_alert_active = True
+            state['weapon_alert_active'] = True
     else:
-        # If no weapon seen recently, reset alert
         if (
-            weapon_alert_active and
-            last_weapon_detected_time and
-            now - last_weapon_detected_time > THREAT_DECAY_SECONDS
+            state['weapon_alert_active']
+            and state['last_weapon_time']
+            and now - state['last_weapon_time'] > THREAT_DECAY_SECONDS
         ):
-            weapon_alert_active = False
+            state['weapon_alert_active'] = False
 
-    # Keep threat level high if weapon alert is active
-    if weapon_alert_active:
+    # Threat level logic
+    if state['weapon_alert_active']:
         detections['threat_level'] = 10
     else:
         detections['threat_level'] = min(
@@ -110,86 +108,69 @@ def detect_objects(frame):
 
     return detections
 
+
 def draw_detections(frame, detections):
     """Draw bounding boxes on frame"""
-    # Draw people
     for person in detections['people']:
-        x1, y1, x2, y2 = [int(coord) for coord in person['bbox']]
+        x1, y1, x2, y2 = map(int, person['bbox'])
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
         label = f"Person {person['confidence']:.2f}"
         cv2.putText(frame, label, (x1, y1 - 10),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-    
-    # Draw weapons
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
     for weapon in detections['weapons']:
-        x1, y1, x2, y2 = [int(coord) for coord in weapon['bbox']]
+        x1, y1, x2, y2 = map(int, weapon['bbox'])
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 3)
         label = f"{weapon['name']} {weapon['confidence']:.2f}"
         cv2.putText(frame, label, (x1, y1 - 10),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-    
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
     return frame
 
-async def camera_loop():
-    """Continuously capture and process frames"""
-    global camera_active, cap
 
-    cap = cv2.VideoCapture(0) # opens default camera usually webcam
-
+async def camera_loop(camera_id):
+    """Continuously capture and process frames for one camera"""
+    cap = cv2.VideoCapture(camera_id)
     if not cap.isOpened():
-        logging.error("Could not open camera")
-        camera_active = False
+        logging.error(f"Could not open camera {camera_id}")
         return
-    
-    logging.info("Camera started successfully")
-    
+
+    logging.info(f"Camera {camera_id} started successfully")
+
     try:
-        while camera_active:
+        while camera_id in ACTIVE_CAMERAS:
             ret, frame = cap.read()
             if not ret:
-                logging.warning("Failed to read frame")
+                logging.warning(f"Camera {camera_id} failed to read frame")
                 await asyncio.sleep(0.1)
                 continue
-            
-            # Run YOLO detection
-            detections = detect_objects(frame)
-            
-            # Draw detections on frame
+
+            detections = detect_objects(frame, camera_id)
             frame_with_detections = draw_detections(frame.copy(), detections)
-            
-            # Convert BGR to RGB (might invert colors on some cameras)
-            # frame_rgb = cv2.cvtColor(frame_with_detections, cv2.COLOR_BGR2RGB)
-            
-            # Encode frame
             encoded_frame = encode_frame(frame_with_detections)
-            
-            # Prepare message
+
             message = json.dumps({
                 'type': 'frame',
+                'camera_id': camera_id,
                 'frame': encoded_frame,
                 'detections': detections,
                 'timestamp': datetime.now().isoformat()
             })
-            
-            # Broadcast to all clients
-            if CONNECTED_CLIENTS:
-                disconnected = set()
-                for client in CONNECTED_CLIENTS:
-                    try:
-                        await client.send(message)
-                    except websockets.exceptions.ConnectionClosed:
-                        disconnected.add(client)
-                
-                # Clean up disconnected clients
-                for client in disconnected:
-                    CONNECTED_CLIENTS.discard(client)
+
+            disconnected = set()
+            for client in CONNECTED_CLIENTS:
+                try:
+                    await client.send(message)
+                except websockets.exceptions.ConnectionClosed:
+                    disconnected.add(client)
+            for d in disconnected:
+                CONNECTED_CLIENTS.discard(d)
 
             await asyncio.sleep(0.016)  # ~60 FPS
 
     finally:
-        if cap:
-            cap.release()
-        logging.info("Camera stopped")
+        cap.release()
+        logging.info(f"Camera {camera_id} stopped")
+
 
 def detect_cameras():
     """Detect available camera devices"""
@@ -199,86 +180,85 @@ def detect_cameras():
         cap = cv2.VideoCapture(index)
         if not cap.read()[0]:
             break
-        else:
-            arr.append(index)
+        arr.append(index)
         cap.release()
         index += 1
     return arr
 
-try:
-    # Code that might raise an exception
-    result = 10 / 0  # This will cause a ZeroDivisionError
-except:
-    # Code to execute if any exception occurs in the try block
-    print("An error occurred!")
-
-available_cameras = detect_cameras()
-print("Available cameras:", len(available_cameras))
 
 async def handle_client(websocket):
-    """Handle individual client connections"""
-    global camera_active
-    
     CONNECTED_CLIENTS.add(websocket)
-    logging.info(f"Client connected. Total clients: {len(CONNECTED_CLIENTS)}")
-    
+    logging.info(f"Client connected. Total: {len(CONNECTED_CLIENTS)}")
+
     try:
         async for message in websocket:
             data = json.loads(message)
-            
-            if data.get('command') == 'start_camera':
-                if not camera_active:
-                    camera_active = True
-                    asyncio.create_task(camera_loop())
-                    await websocket.send(json.dumps({
-                        'type': 'status',
-                        'message': 'Camera started'
-                    }))
-                    logging.info("Camera start command received")
-            
-            elif data.get('command') == 'stop_camera':
-                camera_active = False
+
+            if data.get('command') == 'innit':
+                await websocket.send(json.dumps({
+                    'type': 'innit',
+                    'cameras': num_of_cameras,
+                    'camera_ids': list(range(num_of_cameras))
+                }))
+                logging.info(f"Client init: {list(range(num_of_cameras))}")
+
+            elif data.get('command') == 'start_all':
+                for cam_id in range(num_of_cameras):
+                    if cam_id not in ACTIVE_CAMERAS:
+                        ACTIVE_CAMERAS[cam_id] = asyncio.create_task(camera_loop(cam_id))
                 await websocket.send(json.dumps({
                     'type': 'status',
-                    'message': 'Camera stopped'
+                    'message': f"Started {num_of_cameras} cameras"
                 }))
-                logging.info("Camera stop command received")
-            elif data.get('command') == 'init':
+
+            elif data.get('command') == 'stop_all':
+                for cam_id, task in ACTIVE_CAMERAS.items():
+                    task.cancel()
+                ACTIVE_CAMERAS.clear()
                 await websocket.send(json.dumps({
-                    'cameras': available_cameras
+                    'type': 'status',
+                    'message': 'All cameras stopped'
                 }))
-                logging.info("Client initialization command received")
-    
+                logging.info("Stopped all cameras")
+
+            elif data.get('command') == 'start_camera':
+                cam_id = data.get('camera_id', 0)
+                if cam_id not in ACTIVE_CAMERAS:
+                    ACTIVE_CAMERAS[cam_id] = asyncio.create_task(camera_loop(cam_id))
+                    await websocket.send(json.dumps({
+                        'type': 'status',
+                        'message': f"Camera {cam_id} started"
+                    }))
+
+            elif data.get('command') == 'stop_camera':
+                cam_id = data.get('camera_id', 0)
+                if cam_id in ACTIVE_CAMERAS:
+                    ACTIVE_CAMERAS[cam_id].cancel()
+                    del ACTIVE_CAMERAS[cam_id]
+                    await websocket.send(json.dumps({
+                        'type': 'status',
+                        'message': f"Camera {cam_id} stopped"
+                    }))
+
     except websockets.exceptions.ConnectionClosed:
-        logging.info("Client disconnected unexpectedly")
-    except Exception as e:
-        logging.error(f"Error handling client: {e}")
+        logging.info("Client disconnected")
     finally:
         CONNECTED_CLIENTS.discard(websocket)
-        logging.info(f"Client removed. Total clients: {len(CONNECTED_CLIENTS)}")
-        
-        # Stop camera if no clients
-        if len(CONNECTED_CLIENTS) == 0:
-            camera_active = False
+        if not CONNECTED_CLIENTS:
+            for cam_id, task in ACTIVE_CAMERAS.items():
+                task.cancel()
+            ACTIVE_CAMERAS.clear()
+            logging.info("No clients connected, stopping all cameras")
 
-# async def main():
-#     """Start the WebSocket server"""
-    
-#     host = "localhost"
-#     port = 8765
-    
-#     async with websockets.serve(
-#         handle_client,
-#         host,
-#         port,
-#         ping_interval=20,
-#         ping_timeout=20
-#     ):
-#         logging.info(f"WebSocket server started at ws://{host}:{port}")
-#         await asyncio.Future()
 
-# if __name__ == "__main__":
-#     try:
-#         asyncio.run(main())
-#     except KeyboardInterrupt:
-#         logging.info("Server shutting down...")
+async def main():
+    async with websockets.serve(handle_client, "localhost", 8765):
+        logging.info("Server running at ws://localhost:8765")
+        await asyncio.Future()
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logging.info("Server shutting down...")
