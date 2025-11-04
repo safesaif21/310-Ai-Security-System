@@ -86,7 +86,7 @@ pip freeze > requirements.txt
 To start the WebSocket server, run:
 
 ```bash
-python backend/server.py
+python backend.py
 ```
 
 ---
@@ -97,127 +97,23 @@ python backend/server.py
 To start the Tkinter frontend, run:
 
 ```bash
-python app.py
+python frontend.py
 ```
 
 *prospective updates to readme below*
 
-# 🔒 AI Security System - Streamlit Dashboard
-
-
-## 🌟 Features
-
-### 🎯 Real-time Detection
-- **Live Camera Feed**: Real-time video processing with detection overlays
-- **Human Detection**: Identifies and counts people in view
-- **Weapon Detection**: Detects dangerous objects (knives, bats, scissors)
-- **Threat Level Assessment**: Dynamic 0-10 scale with color-coded alerts
-- **Bounding Boxes**: Visual overlays on detected objects
-
-### 🎨 Beautiful Modern UI
-- **Stunning Dark Theme**: Professional gradient backgrounds
-- **Real-time Threat Meter**: Large circular display (0-10 scale)
-- **Color-coded Alerts**: Green → Yellow → Red based on threat level
-- **Weapon Alerts**: Instant visual notifications for detected threats
-- **Statistics Dashboard**: People count, alerts, timestamps, system status
-- **Responsive Layout**: Clean two-column design
-- **Smooth Animations**: Professional transitions and effects
-
-### 📊 Threat Level System
-- **0**: 🟢 SAFE - No threats detected
-- **1-3**: 🟢 LOW - Minimal threat, normal activity
-- **4-6**: 🟡 MODERATE - Increased monitoring required
-- **7-8**: 🔴 HIGH - Immediate attention needed
-- **9-10**: 🔴 CRITICAL - Emergency response required
-
-## 🚀 Quick Start
-
-### Installation
-
-1. **Clone or download the repository**
-
-2. **Install dependencies**
-```bash
-pip install -r requirements.txt
-```
-
-The YOLO model (`yolov8n.pt`) will auto-download on first run.
-
-### Running the Dashboard
-
-**Single Command:**
-```bash
-streamlit run dashboard.py
-```
-
-The dashboard will automatically open in your browser at `http://localhost:8501`
-
-That's it! 🎉
-
-## 📖 How to Use
-
-1. **Start the Dashboard**
-   ```bash
-   streamlit run dashboard.py
-   ```
-
-2. **Wait for the page to load** in your browser
-
-3. **Click "Start Camera"** button to begin monitoring
-
-4. **View Real-time Data:**
-   - Left side: Live camera feed with detection overlays
-   - Right side: Threat level, weapon alerts, statistics
-
-5. **Click "Stop Camera"** when done
-
-## 🎯 Dashboard Layout
-
-### Left Panel - Camera Feed
-- **Live Video Stream**: Real-time camera view
-- **Detection Overlays**: Colored bounding boxes
-  - 🟢 Green: People
-  - 🔴 Red: Weapons
-  - 🟠 Orange: Other objects
-- **On-Screen Stats**: Threat level, people count, FPS
-
-### Right Panel - Analysis
-1. **Threat Level Meter**
-   - Large numeric display (0-10)
-   - Color-coded indicator
-   - Status badge (SAFE/LOW/MODERATE/HIGH/CRITICAL)
-   - Description text
-
-2. **Weapon Detection Panel**
-   - ✅ No weapons: Green checkmark display
-   - ⚠️ Weapons found: Red alert box with details
-   - Lists all detected weapons with confidence %
-
-3. **Statistics Grid**
-   - 👥 People Detected: Current count
-   - 🚨 Alerts Today: Total alert count
-   - ⏰ Last Update: Current timestamp
-   - 🟢/🔴 System Status: Active/Inactive
-
 ## ⚙️ Configuration
-
-### Change Camera Source
-
-Edit `dashboard.py` line ~335:
-```python
-cap = cv2.VideoCapture(0)  # Change 0 to 1 for external USB camera
-```
 
 ### Adjust Detection Threshold
 
-Edit `dashboard.py` line ~170:
+Edit `backend.py`
 ```python
 if confidence >= 0.5:  # Change to 0.7 for stricter detection
 ```
 
 ### Modify Frame Rate
 
-Edit `dashboard.py` line ~376:
+Edit `backedn.py`
 ```python
 time.sleep(0.03)  # Decrease for faster, increase for slower
 ```
@@ -234,251 +130,425 @@ The system calculates threat levels based on:
 
 **Maximum**: Capped at 10
 
-## 🎨 Customization
-
-### Colors
-
-The dashboard uses these color themes:
-- **Background**: Dark blue gradients (#0f172a to #1e293b)
-- **Cards**: Slate gradients (#1e293b to #334155)
-- **Primary**: Indigo (#6366f1)
-- **Success**: Green (#10b981)
-- **Warning**: Amber (#f59e0b)
-- **Danger**: Red (#ef4444)
-
-Edit the CSS in `dashboard.py` (lines 30-200) to customize.
-
-### Layout
-
-Change the column ratio on line 278:
-```python
-col1, col2 = st.columns([2, 1])  # Change to [3, 1] for wider video
-```
-
-## 🔧 Troubleshooting
-
-### Camera Not Working
-**Problem**: "Could not access camera"
-
-**Solutions**:
-- Grant camera permissions to your terminal/Python
-- Close other apps using the camera (Zoom, Skype, etc.)
-- Try a different camera ID (0, 1, 2...)
-- Restart your computer
-
-### Model Loading Slow
-**Problem**: First run takes time
-
-**Explanation**: YOLOv8 model downloads on first run (~6MB)
-
-**Solution**: Be patient, subsequent runs will be instant
-
-### Low FPS / Laggy
-**Solutions**:
-- Close other applications
-- Reduce camera resolution:
-  ```python
-  cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-  cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-  ```
-- Increase sleep time to 0.05 or 0.1
-- Use GPU acceleration if available
-
-### Port Already in Use
-**Problem**: "Address already in use"
-
-**Solution**:
-```bash
-# Stop the previous Streamlit instance
-# Or use a different port:
-streamlit run dashboard.py --server.port 8502
-```
-
-### Dependencies Issues
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt --force-reinstall
-```
-
-## 📱 Browser Compatibility
-
-Tested and working on:
-- ✅ Google Chrome 90+
-- ✅ Firefox 88+
-- ✅ Safari 14+
-- ✅ Microsoft Edge 90+
-
-## 🖥️ System Requirements
-
-### Minimum
-- Python 3.7+
-- 4GB RAM
-- Webcam
-- CPU: Dual-core 2.0GHz
-
-### Recommended
-- Python 3.9+
-- 8GB+ RAM
-- HD Webcam (720p+)
-- CPU: Quad-core 3.0GHz+
-- GPU with CUDA (optional, for better performance)
-
 ## 📁 Project Structure
 
+## Project Structure
+
 ```
-310-Ai-Security-System/
-├── dashboard.py              # Main Streamlit dashboard (RUN THIS!)
-├── human_detection_test.py   # YOLO detection functions
-├── example_usage.py          # Simple usage examples
-├── backend/
-│   └── server.py            # WebSocket server (not used in Streamlit version)
-├── requirements.txt          # Python dependencies
-├── yolov8n.pt               # YOLOv8 model (auto-downloads)
-├── usage_guide.md           # Additional documentation
-└── README.md                # This file
+310-AI-Security-System/
+├── backend.py               # WebSocket backend server (main backend)
+├── frontend.py              # Tkinter frontend UI (main frontend)
+├── dashboard.py             # Streamlit dashboard
+├── human_detection_test.py  # YOLOv8 script
+├── requirements.txt         # Python dependencies
+├── YOLO_example_guide.md    # YOLO instructions
+├── yolov8n.pt               # Default YOLOv8 model
+├── README.md                # This file
+├── .gitignore               # Git ignore rules
+│
+├── data/
+│   └── data.yml             # Dataset configuration
+│
+├── scripts/                 # Training & evaluation scripts
+│   ├── verify_dataset.py    # Verify dataset integrity
+│   ├── train_security.py    # Main training script
+│   ├── validate_model.py    # Validate trained model
+│   └── test_image.py        # Test model on a single image
+│
+└── examples/                # Example usage scripts
+    └── example_usage.py     # Simple usage example
 ```
-
-## 🚀 Deployment
-
-### Run Locally
-```bash
-streamlit run dashboard.py
-```
-
-### Run on Network
-```bash
-streamlit run dashboard.py --server.address 0.0.0.0
-```
-Access from other devices: `http://YOUR_IP:8501`
-
-### Run on Custom Port
-```bash
-streamlit run dashboard.py --server.port 8080
-```
-
-## 💡 Tips for Best Results
-
-1. **Good Lighting**: Ensure area is well-lit for better detection
-2. **Camera Angle**: Position camera with clear view of monitored area
-3. **Stable Mount**: Keep camera steady for consistent detection
-4. **Distance**: Stay 2-10 feet from camera for optimal detection
-5. **Background**: Avoid cluttered backgrounds when possible
-
-## 🔐 Security & Privacy
-
-- ✅ All processing happens locally on your machine
-- ✅ No data sent to external servers
-- ✅ No internet required after model download
-- ✅ Camera access only when "Start Camera" is clicked
-- ✅ No recording or storage of video
-- ⚠️ For production use, add authentication and HTTPS
-
-## 📝 Detection Capabilities
-
-The system can detect 80+ objects from the COCO dataset, including:
-
-**People & Security:**
-- ✅ Person detection (tracks count)
-- ⚠️ Knife detection
-- ⚠️ Baseball bat detection
-- ⚠️ Scissors detection
-
-**Common Objects:**
-- 🚗 Vehicles (car, truck, bus, motorcycle)
-- 🎒 Bags (backpack, handbag, suitcase)
-- 📱 Electronics (laptop, phone, keyboard, mouse)
-- 🪑 Furniture (chair, couch, bed)
-- And 60+ more...
 
 ## 🎓 How It Works
 
-```
-┌──────────────┐
-│   Webcam     │
-│   Input      │
-└──────┬───────┘
-       │
-       ▼
-┌──────────────────┐
-│  Streamlit App   │
-│  • Captures      │
-│  • Processes     │
-│  • Displays      │
-└──────┬───────────┘
-       │
-       ▼
-┌──────────────────┐
-│  YOLOv8 Model    │
-│  • Detects       │
-│  • Classifies    │
-└──────┬───────────┘
-       │
-       ▼
-┌──────────────────┐
-│  Threat Calc     │
-│  • Analyzes      │
-│  • Scores 0-10   │
-└──────┬───────────┘
-       │
-       ▼
-┌──────────────────┐
-│  UI Update       │
-│  • Video feed    │
-│  • Threat meter  │
-│  • Alerts        │
-│  • Stats         │
-└──────────────────┘
-```
+*insert workflow diagram here*
 
 ## 📄 License
 
 This project is licensed under the MIT License.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-- **Streamlit** - Beautiful Python web framework
 - **Ultralytics YOLOv8** - State-of-the-art object detection
-- **OpenCV** - Computer vision library
-- **COCO Dataset** - Training data for object detection
 
-## 🎯 Keyboard Shortcuts
+# 🎯 YOLOv8 Training Guide - AI Security System
 
-While dashboard is running:
-- **Ctrl+C** in terminal: Stop the server
-- **R** in browser: Rerun the app
-- **C** in browser: Clear cache
+Quick guide to train our custom YOLOv8 model to detect **person**, **weapon**, and **object** in our security system.
 
-## 🔄 Updates
 
-To update dependencies:
-```bash
-pip install --upgrade streamlit ultralytics opencv-python
-```
----
+## 🔧 Prerequisites
 
-## Quick Command Summary
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run dashboard
-streamlit run dashboard.py
-
-# Run on network
-streamlit run dashboard.py --server.address 0.0.0.0
-
-# Run on custom port
-streamlit run dashboard.py --server.port 8080
-
-# Update packages
-pip install --upgrade streamlit ultralytics opencv-python
-```
+All dependencies are in `requirements.txt`
 
 ---
 
-**Built with ❤️ using Streamlit**
+## 📊 Dataset Setup
 
-🌟 **Star this repo if you find it useful!**
+### Dataset Requirements
 
-🚀 **Ready to run? Just type:** `streamlit run dashboard.py`
+**Minimum images:**
+- **Total:** 300+ images
+- **Per class:** 100+ images each (person, weapon, object)
+- **Split:** 70% train (~210), 30% validation (~90)
+
+### Our 3 Classes
+
+- **Class 0:** person
+- **Class 1:** weapon
+- **Class 2:** object
+
+### Label Format (YOLO)
+
+Each image needs a matching `.txt` file:
+```
+<class_id> <x_center> <y_center> <width> <height>
+```
+
+All values are normalized (0-1). Example:
+```
+0 0.5 0.5 0.3 0.4
+1 0.7 0.3 0.2 0.15
+```
+
+### `data.yaml` Configuration
+
+Located at `data/data.yaml`:
+```yaml
+# Dataset paths
+path: ../data
+train: images/train
+val: images/val
+
+# Number of classes
+nc: 3
+
+# Class names
+names:
+  0: person
+  1: weapon
+  2: object
+```
+
+---
+
+## 🎓 Training Workflow
+
+### **Step 1: Verify Dataset**
+
+Always verify your dataset before training:
+```bash
+python scripts/verify_dataset.py
+```
+
+**Expected output:**
+```
+🔍 Verifying dataset structure...
+
+✅ data/images/train exists
+✅ data/images/val exists
+✅ data/labels/train exists
+✅ data/labels/val exists
+
+📊 Dataset Statistics:
+  Training images: 210
+  Training labels: 210
+  Validation images: 90
+  Validation labels: 90
+
+✅ Training images and labels match!
+✅ Validation images and labels match!
+✅ Dataset verification complete!
+```
+
+---
+
+### **Step 2: Train the Model**
+
+Run the main training script:
+```bash
+python scripts/train_security.py
+```
+
+**What happens:**
+1. Loads pretrained YOLOv8s weights
+2. Trains on your dataset for 100 epochs
+3. Validates after each epoch
+4. Saves best model automatically
+
+**Training output:**
+```
+🚀 YOLOv8 Security Training
+============================================================
+⏰ Started: 2024-01-15 14:30:00
+💻 GPU Available: True
+============================================================
+
+⚙️  Configuration:
+   Classes: person, weapon, object
+   Epochs: 100
+   Image Size: 640
+   Batch: 16
+
+============================================================
+
+Epoch  GPU_mem  box_loss  cls_loss  dfl_loss  Instances  Size
+  1/100   2.5G    1.234     0.876     1.123      156      640
+  2/100   2.5G    1.187     0.823     1.089      145      640
+...
+100/100   2.5G    0.335     0.149     0.382       88      640
+
+✅ TRAINING COMPLETE!
+============================================================
+📁 Results: runs/detect/security_model/
+🏆 Best model: runs/detect/security_model/weights/best.pt
+```
+
+**Training time (300 images):**
+- **With GPU (RTX 3060):** 1-1.5 hours
+- **With CPU:** 6-8 hours
+
+---
+
+### **Step 3: Validate the Model**
+
+Check model performance:
+```bash
+python scripts/validate_model.py
+```
+
+**Expected output:**
+```
+🔍 Validating model...
+
+============================================================
+📊 Validation Results
+============================================================
+  mAP50: 0.7234
+  mAP50-95: 0.4567
+  Precision: 0.7891
+  Recall: 0.6543
+
+📋 Per-Class Results:
+  person:     AP50: 0.8123
+  weapon:     AP50: 0.6789
+  object:     AP50: 0.6789
+============================================================
+```
+
+**What good metrics look like:**
+- **mAP50:** > 0.5 (acceptable), > 0.7 (good)
+- **Precision:** > 0.6 (acceptable), > 0.8 (good)
+- **Recall:** > 0.5 (acceptable), > 0.7 (good)
+
+---
+
+### **Step 4: Test the Model**
+
+Test on a single image:
+```bash
+python scripts/test_image.py path/to/test_image.jpg
+```
+
+**Output:**
+```
+🔍 Running detection on: test_image.jpg
+
+🎯 Detections Found: 3
+
+  • person: 92.34%
+  • weapon: 78.56%
+  • object: 65.23%
+
+💾 Saved result to: output_detection.jpg
+```
+
+---
+
+## 🎛️ Customizing Training
+
+### Change Model Size
+
+Edit `scripts/train_security.py`:
+```python
+model = YOLO('yolov8n.pt')  # Fast, less accurate
+model = YOLO('yolov8s.pt')  # Balanced (default)
+model = YOLO('yolov8m.pt')  # Accurate, slower
+```
+
+### Adjust Training Time
+```python
+epochs=50,   # Quick test
+epochs=100,  # Default
+epochs=200,  # Better accuracy
+```
+
+### Fix Memory Issues
+```python
+batch=8,   # If out of memory
+batch=16,  # Default
+batch=32,  # If you have more memory
+```
+
+### Use CPU Instead of GPU
+```python
+device='cpu',  # Change from 0 to 'cpu'
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### "Dataset not found" Error
+
+**Solution:**
+- Verify `data.yaml` exists in `data/` folder
+- Check paths are correct
+- Use absolute paths if needed:
+```yaml
+train: /full/path/to/310-Ai-Security-System/data/images/train
+val: /full/path/to/310-Ai-Security-System/data/images/val
+```
+
+---
+
+### CUDA Out of Memory
+
+**Solutions:**
+1. Reduce batch size: `batch=8`
+2. Use smaller images: `imgsz=416`
+3. Use CPU: `device='cpu'`
+
+---
+
+### Low Accuracy (mAP < 0.5)
+
+**Solutions:**
+1. Collect more data (aim for 300+ total images)
+2. Check label quality
+3. Train longer: `epochs=200`
+4. Use larger model: `model = YOLO('yolov8m.pt')`
+
+---
+
+### Images and Labels Don't Match
+
+**Solution:**
+- Run `python scripts/verify_dataset.py`
+- Ensure every `.jpg` has matching `.txt` file
+- Remove images without labels
+
+---
+
+### Training Stops Early
+
+**Cause:** Early stopping enabled (patience=50)
+
+**Solutions:**
+- Increase patience: `patience=100`
+- Disable: `patience=0`
+
+---
+
+## 📊 Understanding Results
+
+After training, check these files:
+```
+runs/detect/security_model/
+├── weights/
+│   ├── best.pt              # Use this model!
+│   └── last.pt              # Last checkpoint
+├── results.csv              # Training metrics
+├── results.png              # Training curves
+├── confusion_matrix.png     # Classification accuracy
+└── val_batch0_pred.jpg      # Sample predictions
+```
+
+**Good training looks like:**
+- Loss curves decreasing
+- mAP increasing
+- No large fluctuations
+
+---
+
+## 🧪 Testing & Deployment
+
+### Test on Image
+```bash
+python scripts/test_image.py path/to/image.jpg
+```
+
+### Deploy Model
+```bash
+# Copy to models directory
+mkdir -p models
+cp runs/detect/security_model/weights/best.pt models/security_v1.pt
+```
+
+### Use in Your App
+```python
+from ultralytics import YOLO
+
+model = YOLO('models/security_v1.pt')
+results = model('test.jpg', conf=0.3)
+```
+
+---
+
+## 🎯 Quick Commands
+```bash
+# Complete workflow
+source .venv/bin/activate
+python scripts/verify_dataset.py
+python scripts/train_security.py
+python scripts/validate_model.py
+python scripts/test_image.py test.jpg
+
+# Resume interrupted training
+yolo train resume model=runs/detect/security_model/weights/last.pt
+
+# Export model
+yolo export model=runs/detect/security_model/weights/best.pt format=onnx
+```
+
+---
+
+## ✅ Training Checklist
+
+**Before training:**
+- [ ] 300+ total images (100+ per class)
+- [ ] Images split: 70% train, 30% val
+- [ ] Labels in YOLO format
+- [ ] `data.yaml` configured
+- [ ] `verify_dataset.py` runs without errors
+
+**After training:**
+- [ ] mAP > 0.5
+- [ ] Test on sample images
+- [ ] Model detects correctly
+- [ ] Copy to `models/` directory
+
+---
+
+## 🔄 Retraining
+
+### When to Retrain
+- Performance below target
+- Have new training data
+- Seeing consistent errors
+
+### How to Retrain
+
+**Continue from checkpoint:**
+```python
+model = YOLO('runs/detect/security_model/weights/best.pt')
+model.train(data='data/data.yaml', epochs=50)
+```
+
+**Start fresh:**
+```bash
+# Add new images to data/images/train and data/labels/train
+python scripts/verify_dataset.py
+python scripts/train_security.py
+```
+
+---
