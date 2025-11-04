@@ -65,11 +65,6 @@ class SecuritySystemGUI:
             fg='white'
         )
         video_title.pack(pady=10)
-        
-        # --- 🧩 Dynamic Camera Grid ---
-        self.video_grid = tk.Frame(left_frame, bg='#0f172a')
-        self.video_grid.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
-        self.create_camera_grid()
 
         # Control buttons
         btn_frame = tk.Frame(left_frame, bg='#334155')
@@ -90,8 +85,8 @@ class SecuritySystemGUI:
         
         self.start_btn = tk.Button(
             btn_frame,
-            text="▶️ Start Camera",
-            command=self.start_camera,
+            text="▶️ Start Camera(s)",
+            command=self.start_cameras,
             bg='#22c55e',
             fg='white',
             font=("Arial", 12, "bold"),
@@ -105,7 +100,7 @@ class SecuritySystemGUI:
         self.stop_btn = tk.Button(
             btn_frame,
             text="⏹️ Stop Camera",
-            command=self.stop_camera,
+            command=self.stop_cameras,
             bg='#ef4444',
             fg='white',
             font=("Arial", 12, "bold"),
@@ -116,9 +111,10 @@ class SecuritySystemGUI:
         )
         self.stop_btn.pack(side=tk.LEFT, padx=5)
         
-        # Video display
-        self.video_label = tk.Label(left_frame, bg='#0f172a')
-        self.video_label.pack(pady=20, padx=20, fill=tk.BOTH, expand=True)
+        # --- 🧩 Dynamic Camera Grid ---
+        self.video_grid = tk.Frame(left_frame, bg='#0f172a')
+        self.video_grid.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+        self.create_camera_grid()
         
         # Right column - Stats
         right_frame = tk.Frame(content, bg='#1e293b', width=350)
@@ -269,26 +265,30 @@ class SecuritySystemGUI:
                 data = json.loads(message)
                 
                 if data['type'] == 'frame':
-                    # Decode frame
+                    cam_id = data.get('camera_id', 0)
                     img_bytes = base64.b64decode(data['frame'])
                     img = Image.open(io.BytesIO(img_bytes))
-                    self.current_frame = img
+                    self.current_frames[cam_id] = img  # store per camera
                     
-                    # Update detections
+                    # Update detections (for global stats)
                     detections = data['detections']
                     self.threat_level = detections['threat_level']
                     self.people_count = detections['people_count']
                     self.detected_weapons = detections['weapons']
-                    
+
                     if len(detections['weapons']) > 0:
                         self.alert_count += 1
-                    
-                    # Update UI in main thread
+
                     self.root.after(0, self.update_display)
+                    
+                if data['type'] == 'camera_list':
+                    cameras = data.get('cameras', [])
+                    self.num_of_cameras = len(cameras)
+                    print(f"Activated {len(cameras)} cameras: {cameras}")
+                    self.root.after(0, lambda: self.refresh_camera_grid(len(cameras)))
                 if data['type'] == 'innit':
                     global num_of_cameras
                     num_of_cameras = data['cameras']
-                    print(f"Number of Cameras: {num_of_cameras}")
             except Exception as e:
                 print(f"Error: {e}")
         
@@ -302,7 +302,7 @@ class SecuritySystemGUI:
         
         def on_close(ws, close_status_code, close_msg):
             self.connected = False
-            self.camera_active = False
+            self.cameras_active = False
             self.root.after(0, self.update_connection_status)
         
         def on_error(ws, error):
@@ -321,30 +321,28 @@ class SecuritySystemGUI:
         thread = threading.Thread(target=run_ws, daemon=True)
         thread.start()
     
-    def start_camera(self):
-        """Send start camera command"""
+    def start_cameras(self):
+        """Send start cameras command"""
         if self.ws and self.connected:
-
-            for i in range(num_of_cameras):
-                self.ws.send(json.dumps({'command': 'start_camera', 'camera_id': i}))
+            self.ws.send(json.dumps({'command': 'start_cameras'}))
             self.cameras_active = True
             self.update_connection_status()
     
-    def stop_camera(self):
+    def stop_cameras(self):
         """Send stop camera command"""
         if self.ws and self.connected:
-            self.ws.send(json.dumps({'command': 'stop_camera'}))
-            self.camera_active = False
+            self.ws.send(json.dumps({'command': 'stop_cameras'}))
+            self.cameras_active = False
             self.update_connection_status()
     
     def update_connection_status(self):
         """Update button states based on connection"""
         if self.connected:
             self.connect_btn.config(state=tk.DISABLED)
-            self.start_btn.config(state=tk.NORMAL if not self.camera_active else tk.DISABLED)
-            self.stop_btn.config(state=tk.NORMAL if self.camera_active else tk.DISABLED)
-            
-            if self.camera_active:
+            self.start_btn.config(state=tk.NORMAL if not self.cameras_active else tk.DISABLED)
+            self.stop_btn.config(state=tk.NORMAL if self.cameras_active else tk.DISABLED)
+
+            if self.cameras_active:
                 self.status_emoji.config(text="🟢")
                 self.status_label.config(text="ACTIVE")
             else:
@@ -358,15 +356,14 @@ class SecuritySystemGUI:
             self.status_label.config(text="INACTIVE")
     
     def update_display(self):
-        """Update the display with current frame and stats"""
-        # Update video frame
-        if self.current_frame:
-            # Resize to fit display
-            display_img = self.current_frame.copy()
-            display_img.thumbnail((800, 600), Image.Resampling.LANCZOS)
-            photo = ImageTk.PhotoImage(display_img)
-            self.video_label.config(image=photo)
-            self.video_label.image = photo
+        """Update all camera feeds and stats"""
+        for i, frame in enumerate(self.current_frames):
+            if frame is not None:
+                display_img = frame.copy()
+                display_img.thumbnail((400, 300), Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(display_img)
+                self.video_labels[i].config(image=photo, text=f"Camera {i+1}")
+                self.video_labels[i].image = photo
         
         # Update threat level
         self.threat_label.config(text=f"{self.threat_level}/10")
@@ -404,6 +401,13 @@ class SecuritySystemGUI:
         self.people_label.config(text=str(self.people_count))
         self.alert_label.config(text=str(self.alert_count))
 
+    def refresh_camera_grid(self, new_count):
+        """Recreate grid if number of active cameras changed"""
+        for widget in self.video_grid.winfo_children():
+            widget.destroy()
+        self.num_of_cameras = new_count
+        self.create_camera_grid()
+
 def get_num_of_cameras(timeout=60):
     """Fetch number of cameras from backend before starting GUI."""
     global num_of_cameras
@@ -416,7 +420,6 @@ def get_num_of_cameras(timeout=60):
             data = json.loads(message)
             if data.get("type") == "innit":
                 num_of_cameras = data["cameras"]
-                print(f"Received number of cameras: {num_of_cameras}")
                 event.set()  # signal that we got the data
                 ws.close()
         except Exception as e:
