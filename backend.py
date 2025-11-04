@@ -8,18 +8,24 @@ import json
 from ultralytics import YOLO
 from datetime import datetime
 import time
+import sys
 
 logging.basicConfig(level=logging.INFO)
 
 # Global state
 CONNECTED_CLIENTS = set()
-camera_active = False
-cap = None
+ACTIVE_CAMERAS = {}  # {camera_id: task}
 model = YOLO("yolov8n.pt")
 
-# Detection memory
-last_weapon_detected_time = None
-weapon_alert_active = False
+if(len(sys.argv) > 1):
+    num_of_cameras = int(sys.argv[1])
+else:
+    num_of_cameras = 1
+
+print(f"Number of cameras set to: {num_of_cameras}")
+# Detection memory per camera
+DETECTION_STATE = {}
+
 THREAT_DECAY_SECONDS = 5  # how long to keep high threat after last detection
 
 if (model):
@@ -30,13 +36,15 @@ else:
 def encode_frame(frame):
     """Encode frame to base64 for transmission"""
     _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-    jpg_as_text = base64.b64encode(buffer).decode('utf-8')
-    return jpg_as_text
+    return base64.b64encode(buffer).decode('utf-8')
 
-def detect_objects(frame):
+
+def detect_objects(frame, camera_id):
     """Run YOLO detection on frame"""
-    global last_weapon_detected_time, weapon_alert_active
-
+    state = DETECTION_STATE.setdefault(camera_id, {
+        'last_weapon_time': None,
+        'weapon_alert_active': False
+    })
     results = model(frame, verbose=False)
 
     detections = {
@@ -49,12 +57,10 @@ def detect_objects(frame):
     }
 
     weapon_classes = {43: 'Knife', 34: 'Baseball Bat', 76: 'Scissors'}
-
     weapon_found = False
 
     for result in results:
-        boxes = result.boxes
-        for box in boxes:
+        for box in result.boxes:
             cls = int(box.cls[0])
             conf = float(box.conf[0])
             x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().tolist()
@@ -84,23 +90,22 @@ def detect_objects(frame):
 
     now = time.time()
 
-    # If a weapon was seen this frame
+    # Alert logic per camera
     if weapon_found:
-        last_weapon_detected_time = now
-        if not weapon_alert_active:
+        state['last_weapon_time'] = now
+        if not state['weapon_alert_active']:
             detections['alert'] = "⚠️ Weapon detected!"
-            weapon_alert_active = True
+            state['weapon_alert_active'] = True
     else:
-        # If no weapon seen recently, reset alert
         if (
-            weapon_alert_active and
-            last_weapon_detected_time and
-            now - last_weapon_detected_time > THREAT_DECAY_SECONDS
+            state['weapon_alert_active']
+            and state['last_weapon_time']
+            and now - state['last_weapon_time'] > THREAT_DECAY_SECONDS
         ):
-            weapon_alert_active = False
+            state['weapon_alert_active'] = False
 
-    # Keep threat level high if weapon alert is active
-    if weapon_alert_active:
+    # Threat level logic
+    if state['weapon_alert_active']:
         detections['threat_level'] = 10
     else:
         detections['threat_level'] = min(
@@ -110,143 +115,202 @@ def detect_objects(frame):
 
     return detections
 
-def draw_detections(frame, detections):
+
+def draw_detections(frame, detections, camera_id=None):
     """Draw bounding boxes on frame"""
-    # Draw people
     for person in detections['people']:
-        x1, y1, x2, y2 = [int(coord) for coord in person['bbox']]
+        x1, y1, x2, y2 = map(int, person['bbox'])
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
         label = f"Person {person['confidence']:.2f}"
         cv2.putText(frame, label, (x1, y1 - 10),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-    
-    # Draw weapons
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
     for weapon in detections['weapons']:
-        x1, y1, x2, y2 = [int(coord) for coord in weapon['bbox']]
+        x1, y1, x2, y2 = map(int, weapon['bbox'])
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 3)
         label = f"{weapon['name']} {weapon['confidence']:.2f}"
         cv2.putText(frame, label, (x1, y1 - 10),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-    
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        
+    # Annotate camera ID on bottom-right
+    if camera_id is not None:
+        h, w = frame.shape[:2]
+        text = f"Camera {camera_id}"
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = 1
+        thickness = 2
+        color = (255, 255, 255)  # white
+        text_size = cv2.getTextSize(text, font, scale, thickness)[0]
+        position = (w - text_size[0] - 10, h - 10)
+        cv2.putText(frame, text, position, font, scale, color, thickness)
     return frame
 
-async def camera_loop():
-    """Continuously capture and process frames"""
-    global camera_active, cap
 
-    cap = cv2.VideoCapture(0) # opens default camera usually webcam
-
+async def camera_loop(camera_id):
+    """Continuously capture and process frames for one camera"""
+    cap = cv2.VideoCapture(camera_id)
     if not cap.isOpened():
-        logging.error("Could not open camera")
-        camera_active = False
+        logging.error(f"Could not open camera {camera_id}")
         return
-    
-    logging.info("Camera started successfully")
-    
+
+    # Re-read values to verify
+    actual_brightness = cap.get(cv2.CAP_PROP_BRIGHTNESS)
+    actual_fps = cap.get(cv2.CAP_PROP_FPS)
+    print(f"Brightness set to {actual_brightness}, FPS set to {actual_fps}")
+
+    logging.info(f"Camera {camera_id} started successfully")
+
     try:
-        while camera_active:
+        while camera_id in ACTIVE_CAMERAS:
             ret, frame = cap.read()
             if not ret:
-                logging.warning("Failed to read frame")
+                logging.warning(f"Camera {camera_id} failed to read frame")
                 await asyncio.sleep(0.1)
                 continue
             
-            # Run YOLO detection
-            detections = detect_objects(frame)
-            
-            # Draw detections on frame
-            frame_with_detections = draw_detections(frame.copy(), detections)
-            
-            # Convert BGR to RGB (might invert colors on some cameras)
-            # frame_rgb = cv2.cvtColor(frame_with_detections, cv2.COLOR_BGR2RGB)
-            
-            # Encode frame
+            if camera_id == 0: # hardcoded enhancements for camera 0
+                 # --- Convert to float for precision ---
+                frame_float = frame.astype(np.float32) / 255.0
+
+                # --- Gamma correction ---
+                gamma = 125 / 100  # scale OBS 0-255 to ~0-3, 150 → 1.5
+                frame_float = np.power(frame_float, 1.0 / gamma)
+
+                # --- Convert to HSV for hue & saturation ---
+                hsv = cv2.cvtColor((frame_float * 255).astype(np.uint8), cv2.COLOR_BGR2HSV).astype(np.float32)
+
+                # Hue (OBS 0 → 0 shift)
+                hue_shift = 0
+                hsv[:, :, 0] = (hsv[:, :, 0] + hue_shift) % 180
+
+                # Saturation (OBS 255 → full)
+                sat_scale = 200 / 128  # scale OBS 0–255 (128 = no change)
+                hsv[:, :, 1] = np.clip(hsv[:, :, 1] * sat_scale, 0, 255)
+
+                # Convert back to BGR
+                frame = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+
+                # --- Brightness and Contrast ---
+                # OBS 0–255 → OpenCV alpha/beta mapping
+                alpha = 150 / 128   # contrast
+                beta = 200 - 128    # brightness offset
+                frame = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
+
+                # --- Sharpness (Unsharp Mask) ---
+                sharpness = 25 / 100  # scale 0–1
+                blurred = cv2.GaussianBlur(frame, (0, 0), 3)
+                frame = cv2.addWeighted(frame, 1 + sharpness, blurred, -sharpness, 0)
+    
+            detections = detect_objects(frame, camera_id)
+            frame_with_detections = draw_detections(frame.copy(), detections, camera_id)
             encoded_frame = encode_frame(frame_with_detections)
-            
-            # Prepare message
+
             message = json.dumps({
                 'type': 'frame',
+                'camera_id': camera_id,
                 'frame': encoded_frame,
                 'detections': detections,
                 'timestamp': datetime.now().isoformat()
             })
-            
-            # Broadcast to all clients
-            if CONNECTED_CLIENTS:
-                disconnected = set()
-                for client in CONNECTED_CLIENTS:
-                    try:
-                        await client.send(message)
-                    except websockets.exceptions.ConnectionClosed:
-                        disconnected.add(client)
-                
-                # Clean up disconnected clients
-                for client in disconnected:
-                    CONNECTED_CLIENTS.discard(client)
+
+            disconnected = set()
+            for client in CONNECTED_CLIENTS:
+                try:
+                    await client.send(message)
+                except websockets.exceptions.ConnectionClosed:
+                    disconnected.add(client)
+            for d in disconnected:
+                CONNECTED_CLIENTS.discard(d)
 
             await asyncio.sleep(0.016)  # ~60 FPS
 
     finally:
-        if cap:
-            cap.release()
-        logging.info("Camera stopped")
+        cap.release()
+        logging.info(f"Camera {camera_id} stopped")
+
+
+
+
+def detect_cameras():
+    """Detect available camera devices"""
+    index = 0
+    arr = []
+    while True:
+        cap = cv2.VideoCapture(index)
+        if not cap.read()[0]:
+            break
+        arr.append(index)
+        cap.release()
+        index += 1
+    return arr
+
 
 async def handle_client(websocket):
-    """Handle individual client connections"""
-    global camera_active
-    
     CONNECTED_CLIENTS.add(websocket)
-    logging.info(f"Client connected. Total clients: {len(CONNECTED_CLIENTS)}")
-    
+    logging.info(f"Client connected. Total: {len(CONNECTED_CLIENTS)}")
+
     try:
         async for message in websocket:
             data = json.loads(message)
-            
-            if data.get('command') == 'start_camera':
-                if not camera_active:
-                    camera_active = True
-                    asyncio.create_task(camera_loop())
-                    await websocket.send(json.dumps({
-                        'type': 'status',
-                        'message': 'Camera started'
-                    }))
-                    logging.info("Camera start command received")
-            
-            elif data.get('command') == 'stop_camera':
-                camera_active = False
+
+            if data.get('command') == 'innit':
+                await websocket.send(json.dumps({
+                    'type': 'innit',
+                    'cameras': num_of_cameras,
+                    'camera_ids': list(range(num_of_cameras))
+                }))
+
+            elif data.get('command') == 'start_cameras':
+                camera_details = []
+                available_cameras = range(num_of_cameras) # generate camera IDs based on num_of_cameras
+
+                # Start each detected camera if not already active
+                for cam_id in available_cameras:
+                    if cam_id not in ACTIVE_CAMERAS:
+                        ACTIVE_CAMERAS[cam_id] = asyncio.create_task(camera_loop(cam_id))
+                        camera_details.append({
+                            "camera_id": cam_id,
+                            "status": "active",
+                            "name": f"Camera {cam_id}",
+                            "started_at": datetime.now().isoformat()
+                        })
+                    else:
+                        camera_details.append({
+                            "camera_id": cam_id,
+                            "status": "already_active",
+                            "name": f"Camera {cam_id}"
+                        })
+
+                await websocket.send(json.dumps({
+                    "type": "camera_activation",
+                    "cameras": camera_details,
+                    "message": f"Activated {len(camera_details)} cameras"
+                }))
+
+            elif data.get('command') == 'stop_cameras':
+                for cam_id, task in ACTIVE_CAMERAS.items():
+                    task.cancel()
+                ACTIVE_CAMERAS.clear()
                 await websocket.send(json.dumps({
                     'type': 'status',
-                    'message': 'Camera stopped'
+                    'message': 'All cameras stopped'
                 }))
-                logging.info("Camera stop command received")
-    
+
     except websockets.exceptions.ConnectionClosed:
-        logging.info("Client disconnected unexpectedly")
-    except Exception as e:
-        logging.error(f"Error handling client: {e}")
+        logging.info("Client disconnected")
     finally:
         CONNECTED_CLIENTS.discard(websocket)
-        logging.info(f"Client removed. Total clients: {len(CONNECTED_CLIENTS)}")
-        
-        # Stop camera if no clients
-        if len(CONNECTED_CLIENTS) == 0:
-            camera_active = False
+        if not CONNECTED_CLIENTS:
+            for cam_id, task in ACTIVE_CAMERAS.items():
+                task.cancel()
+            ACTIVE_CAMERAS.clear()
+
 
 async def main():
-    """Start the WebSocket server"""
-    
-    host = "localhost"
-    port = 8765
-    
-    async with websockets.serve(
-        handle_client,
-        host,
-        port,
-        ping_interval=20,
-        ping_timeout=20
-    ):
-        logging.info(f"WebSocket server started at ws://{host}:{port}")
+    async with websockets.serve(handle_client, "localhost", 8765):
+        logging.info("Server running at ws://localhost:8765")
         await asyncio.Future()
+
 
 if __name__ == "__main__":
     try:
