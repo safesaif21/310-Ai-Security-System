@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 # Global state
 CONNECTED_CLIENTS = set()
 ACTIVE_CAMERAS = {}  # {camera_id: task}
-model = YOLO("yolov8n.pt")
+model = YOLO("yolo_models/yolov8n.pt")
 
 if(len(sys.argv) > 1):
     num_of_cameras = int(sys.argv[1])
