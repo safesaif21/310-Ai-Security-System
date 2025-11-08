@@ -9,6 +9,8 @@ from ultralytics import YOLO
 from datetime import datetime
 import time
 import sys
+import os
+from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
 
@@ -16,6 +18,7 @@ logging.basicConfig(level=logging.INFO)
 CONNECTED_CLIENTS = set()
 ACTIVE_CAMERAS = {}  # {camera_id: task}
 model = YOLO("yolo_models/yolov8n.pt")
+current_model_path = "yolo_models/yolov8n.pt"
 
 if(len(sys.argv) > 1):
     num_of_cameras = int(sys.argv[1])
@@ -245,6 +248,87 @@ def detect_cameras():
     return arr
 
 
+def scan_yolo_models():
+    """Scan for all .pt YOLO model files in the repository"""
+    models = []
+    base_path = Path(__file__).parent
+    
+    # Common locations to search for models
+    search_paths = [
+        base_path / "yolo_models",
+        base_path,
+        base_path / "models",
+        base_path / "weights"
+    ]
+    
+    # Also search for common YOLO model names
+    common_models = [
+        "yolov8n.pt", "yolov8s.pt", "yolov8m.pt", "yolov8l.pt", "yolov8x.pt",
+        "yolov5n.pt", "yolov5s.pt", "yolov5m.pt", "yolov5l.pt", "yolov5x.pt"
+    ]
+    
+    found_paths = set()
+    
+    # Search in specific directories
+    for search_path in search_paths:
+        if search_path.exists():
+            for pt_file in search_path.glob("*.pt"):
+                # Use forward slashes for cross-platform compatibility
+                rel_path = str(pt_file.relative_to(base_path)).replace('\\', '/')
+                if rel_path not in found_paths:
+                    models.append({
+                        "name": pt_file.stem,
+                        "path": rel_path,
+                        "full_path": str(pt_file.absolute())
+                    })
+                    found_paths.add(rel_path)
+    
+    # Check for common model names in root
+    for model_name in common_models:
+        model_path = base_path / model_name
+        if model_path.exists():
+            rel_path = model_name
+            if rel_path not in found_paths:
+                models.append({
+                    "name": model_path.stem,
+                    "path": rel_path,
+                    "full_path": str(model_path.absolute())
+                })
+                found_paths.add(rel_path)
+    
+    # Sort by name
+    models.sort(key=lambda x: x["name"])
+    
+    logging.info(f"Found {len(models)} YOLO models: {[m['name'] for m in models]}")
+    
+    return models
+
+
+def switch_model(model_path):
+    """Switch to a different YOLO model"""
+    global model, current_model_path
+    try:
+        # Ensure path is correct (handle relative paths)
+        base_path = Path(__file__).parent
+        full_path = (base_path / model_path).resolve()
+        
+        if not full_path.exists():
+            logging.error(f"Model file not found: {full_path}")
+            return False
+        
+        # Load the new model
+        new_model = YOLO(str(full_path))
+        model = new_model
+        current_model_path = model_path
+        logging.info(f"✅ Successfully switched to model: {model_path}")
+        return True
+    except Exception as e:
+        logging.error(f"❌ Failed to load model {model_path}: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 async def handle_client(websocket):
     CONNECTED_CLIENTS.add(websocket)
     logging.info(f"Client connected. Total: {len(CONNECTED_CLIENTS)}")
@@ -254,10 +338,14 @@ async def handle_client(websocket):
             data = json.loads(message)
 
             if data.get('command') == 'innit':
+                # Scan for available models
+                available_models = scan_yolo_models()
                 await websocket.send(json.dumps({
                     'type': 'innit',
                     'cameras': num_of_cameras,
-                    'camera_ids': list(range(num_of_cameras))
+                    'camera_ids': list(range(num_of_cameras)),
+                    'available_models': available_models,
+                    'current_model': current_model_path
                 }))
 
             elif data.get('command') == 'start_cameras':
@@ -295,6 +383,27 @@ async def handle_client(websocket):
                     'type': 'status',
                     'message': 'All cameras stopped'
                 }))
+            
+            elif data.get('command') == 'switch_model':
+                model_path = data.get('model_path')
+                if model_path:
+                    success = switch_model(model_path)
+                    if success:
+                        await websocket.send(json.dumps({
+                            'type': 'model_switched',
+                            'model_path': model_path,
+                            'message': f'Successfully switched to {model_path}'
+                        }))
+                    else:
+                        await websocket.send(json.dumps({
+                            'type': 'error',
+                            'message': f'Failed to switch to model: {model_path}'
+                        }))
+                else:
+                    await websocket.send(json.dumps({
+                        'type': 'error',
+                        'message': 'No model_path provided'
+                    }))
 
     except websockets.exceptions.ConnectionClosed:
         logging.info("Client disconnected")
@@ -307,6 +416,15 @@ async def handle_client(websocket):
 
 
 async def main():
+    # Scan for available models on startup
+    available_models = scan_yolo_models()
+    if available_models:
+        logging.info(f"Found {len(available_models)} YOLO model(s) available for selection")
+        for m in available_models:
+            logging.info(f"  - {m['name']}: {m['path']}")
+    else:
+        logging.warning("No YOLO models found in repository")
+    
     async with websockets.serve(handle_client, "localhost", 8765):
         logging.info("Server running at ws://localhost:8765")
         await asyncio.Future()
