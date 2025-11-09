@@ -8,6 +8,7 @@ import json
 import base64
 import io
 import numpy as np
+import os
 
 num_of_cameras = 0  # Placeholder for number of cameras
 
@@ -24,6 +25,8 @@ class SecuritySystemGUI:
         self.connected = False
         self.cameras_active = False
         self.current_frames = [None] * num_of_cameras  # support multiple feeds
+        self.available_models = []
+        self.current_model_path = None
         
         # Stats
         self.threat_level = 0
@@ -120,6 +123,51 @@ class SecuritySystemGUI:
         right_frame = tk.Frame(content, bg='#1e293b', width=350)
         right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, padx=(10, 0))
         right_frame.pack_propagate(False)
+        
+        # Model Selection
+        model_frame = tk.Frame(right_frame, bg='#334155', bd=2, relief=tk.RAISED)
+        model_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        tk.Label(
+            model_frame,
+            text="🤖 YOLO Model",
+            font=("Arial", 14, "bold"),
+            bg='#334155',
+            fg='white'
+        ).pack(pady=10)
+        
+        # Model dropdown
+        model_select_frame = tk.Frame(model_frame, bg='#334155')
+        model_select_frame.pack(padx=10, pady=(0, 10), fill=tk.X)
+        
+        tk.Label(
+            model_select_frame,
+            text="Select Model:",
+            font=("Arial", 10),
+            bg='#334155',
+            fg='#94a3b8'
+        ).pack(anchor=tk.W)
+        
+        self.model_var = tk.StringVar()
+        self.model_dropdown = ttk.Combobox(
+            model_select_frame,
+            textvariable=self.model_var,
+            state="readonly",
+            font=("Arial", 10),
+            width=25
+        )
+        self.model_dropdown.pack(pady=5, fill=tk.X)
+        self.model_dropdown.bind("<<ComboboxSelected>>", self.on_model_selected)
+        
+        self.model_status_label = tk.Label(
+            model_frame,
+            text="Not connected",
+            font=("Arial", 9),
+            bg='#334155',
+            fg='#94a3b8',
+            wraplength=300
+        )
+        self.model_status_label.pack(pady=(0, 10))
         
         # Threat Level
         threat_frame = tk.Frame(right_frame, bg='#334155', bd=2, relief=tk.RAISED)
@@ -289,6 +337,19 @@ class SecuritySystemGUI:
                 if data['type'] == 'innit':
                     global num_of_cameras
                     num_of_cameras = data['cameras']
+                    # Handle available models
+                    available_models = data.get('available_models', [])
+                    current_model = data.get('current_model', '')
+                    self.root.after(0, lambda: self.update_model_list(available_models, current_model))
+                
+                if data['type'] == 'model_switched':
+                    model_path = data.get('model_path', '')
+                    message = data.get('message', 'Model switched')
+                    self.root.after(0, lambda: self.on_model_switched_success(model_path, message))
+                
+                if data['type'] == 'error' and 'model' in data.get('message', '').lower():
+                    error_msg = data.get('message', 'Error switching model')
+                    self.root.after(0, lambda: self.on_model_switch_error(error_msg))
             except Exception as e:
                 print(f"Error: {e}")
         
@@ -335,13 +396,90 @@ class SecuritySystemGUI:
             self.cameras_active = False
             self.update_connection_status()
     
+    def update_model_list(self, available_models, current_model):
+        """Update the model dropdown with available models"""
+        self.available_models = available_models
+        self.current_model_path = current_model
+        
+        if available_models:
+            # Create display names for dropdown (just show the model name)
+            model_names = [m['name'] for m in available_models]
+            self.model_dropdown['values'] = model_names
+            
+            # Set current selection
+            for model in available_models:
+                if model['path'] == current_model:
+                    self.model_var.set(model['name'])
+                    break
+            
+            # Update status with model name and path
+            model_name = os.path.basename(current_model).replace('.pt', '')
+            self.model_status_label.config(
+                text=f"✅ Active: {model_name}",
+                fg='#10b981'
+            )
+        else:
+            self.model_status_label.config(
+                text="No models found",
+                fg='#ef4444'
+            )
+    
+    def on_model_selected(self, event=None):
+        """Handle model selection from dropdown"""
+        if not self.connected or not self.ws:
+            return
+        
+        selection = self.model_var.get()
+        if not selection:
+            return
+        
+        # Find the selected model (dropdown shows just the name)
+        for model in self.available_models:
+            if model['name'] == selection:
+                # Don't switch if it's already the current model
+                if model['path'] == self.current_model_path:
+                    return
+                
+                # Send switch model command
+                self.model_status_label.config(
+                    text=f"⏳ Switching to {model['name']}...",
+                    fg='#f59e0b'
+                )
+                if self.ws:
+                    self.ws.send(json.dumps({
+                        'command': 'switch_model',
+                        'model_path': model['path']
+                    }))
+                break
+    
+    def on_model_switched_success(self, model_path, message):
+        """Handle successful model switch"""
+        self.current_model_path = model_path
+        model_name = os.path.basename(model_path)
+        self.model_status_label.config(
+            text=f"✅ Active: {model_name}",
+            fg='#10b981'
+        )
+        print(f"Model switched: {message}")
+    
+    def on_model_switch_error(self, error_msg):
+        """Handle model switch error"""
+        self.model_status_label.config(
+            text=f"❌ Error: {error_msg[:50]}",
+            fg='#ef4444'
+        )
+        print(f"Model switch error: {error_msg}")
+    
     def update_connection_status(self):
         """Update button states based on connection"""
         if self.connected:
             self.connect_btn.config(state=tk.DISABLED)
             self.start_btn.config(state=tk.NORMAL if not self.cameras_active else tk.DISABLED)
             self.stop_btn.config(state=tk.NORMAL if self.cameras_active else tk.DISABLED)
-
+            # Enable model dropdown when connected
+            if hasattr(self, 'model_dropdown'):
+                self.model_dropdown.config(state="readonly")
+            
             if self.cameras_active:
                 self.status_emoji.config(text="🟢")
                 self.status_label.config(text="ACTIVE")
@@ -352,6 +490,11 @@ class SecuritySystemGUI:
             self.connect_btn.config(state=tk.NORMAL)
             self.start_btn.config(state=tk.DISABLED)
             self.stop_btn.config(state=tk.DISABLED)
+            # Disable model dropdown when not connected
+            if hasattr(self, 'model_dropdown'):
+                self.model_dropdown.config(state="disabled")
+                self.model_status_label.config(text="Not connected", fg='#94a3b8')
+            
             self.status_emoji.config(text="🔴")
             self.status_label.config(text="INACTIVE")
     
