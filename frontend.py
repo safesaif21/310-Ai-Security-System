@@ -9,6 +9,7 @@ import base64
 import io
 import numpy as np
 import os
+import math
 
 num_of_cameras = 0  # Placeholder for number of cameras
 
@@ -264,14 +265,14 @@ class SecuritySystemGUI:
     def create_camera_grid(self):
         """Create dynamic camera feed grid based on number of cameras"""
         cams = self.num_of_cameras
-
+        
         # Determine grid layout
         if cams == 1:
             rows, cols = 1, 1
         elif cams <= 4:
             rows, cols = 2, 2
         elif cams <= 6:
-            rows, cols = 2, 4
+            rows, cols = 2, 3
         elif cams <= 8:
             rows, cols = 3, 4
         else:

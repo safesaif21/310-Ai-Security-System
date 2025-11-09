@@ -11,6 +11,7 @@ import time
 import sys
 import os
 from pathlib import Path
+import torch
 
 logging.basicConfig(level=logging.INFO)
 
@@ -18,6 +19,7 @@ logging.basicConfig(level=logging.INFO)
 CONNECTED_CLIENTS = set()
 ACTIVE_CAMERAS = {}  # {camera_id: task}
 model = YOLO("yolo_models/yolov8n.pt")
+model.to("cuda")
 current_model_path = "yolo_models/yolov8n.pt"
 
 if(len(sys.argv) > 1):
@@ -30,11 +32,6 @@ print(f"Number of cameras set to: {num_of_cameras}")
 DETECTION_STATE = {}
 
 THREAT_DECAY_SECONDS = 5  # how long to keep high threat after last detection
-
-if (model):
-    logging.info("YOLO model loaded successfully")
-else:
-    logging.error("Failed to load YOLO model")
 
 def encode_frame(frame):
     """Encode frame to base64 for transmission"""
@@ -171,39 +168,39 @@ async def camera_loop(camera_id):
                 await asyncio.sleep(0.1)
                 continue
             
-            if camera_id == 0: # hardcoded enhancements for camera 0
-                 # --- Convert to float for precision ---
-                frame_float = frame.astype(np.float32) / 255.0
+            # if camera_id == 0: # hardcoded enhancements for camera 0
+            #      # --- Convert to float for precision ---
+            #     frame_float = frame.astype(np.float32) / 255.0
 
-                # --- Gamma correction ---
-                gamma = 125 / 100  # scale OBS 0-255 to ~0-3, 150 → 1.5
-                frame_float = np.power(frame_float, 1.0 / gamma)
+            #     # --- Gamma correction ---
+            #     gamma = 125 / 100  # scale OBS 0-255 to ~0-3, 150 → 1.5
+            #     frame_float = np.power(frame_float, 1.0 / gamma)
 
-                # --- Convert to HSV for hue & saturation ---
-                hsv = cv2.cvtColor((frame_float * 255).astype(np.uint8), cv2.COLOR_BGR2HSV).astype(np.float32)
+            #     # --- Convert to HSV for hue & saturation ---
+            #     hsv = cv2.cvtColor((frame_float * 255).astype(np.uint8), cv2.COLOR_BGR2HSV).astype(np.float32)
 
-                # Hue (OBS 0 → 0 shift)
-                hue_shift = 0
-                hsv[:, :, 0] = (hsv[:, :, 0] + hue_shift) % 180
+            #     # Hue (OBS 0 → 0 shift)
+            #     hue_shift = 0
+            #     hsv[:, :, 0] = (hsv[:, :, 0] + hue_shift) % 180
 
-                # Saturation (OBS 255 → full)
-                sat_scale = 200 / 128  # scale OBS 0–255 (128 = no change)
-                hsv[:, :, 1] = np.clip(hsv[:, :, 1] * sat_scale, 0, 255)
+            #     # Saturation (OBS 255 → full)
+            #     sat_scale = 200 / 128  # scale OBS 0–255 (128 = no change)
+            #     hsv[:, :, 1] = np.clip(hsv[:, :, 1] * sat_scale, 0, 255)
 
-                # Convert back to BGR
-                frame = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+            #     # Convert back to BGR
+            #     frame = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
 
-                # --- Brightness and Contrast ---
-                # OBS 0–255 → OpenCV alpha/beta mapping
-                alpha = 150 / 128   # contrast
-                beta = 200 - 128    # brightness offset
-                frame = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
+            #     # --- Brightness and Contrast ---
+            #     # OBS 0–255 → OpenCV alpha/beta mapping
+            #     alpha = 150 / 128   # contrast
+            #     beta = 200 - 128    # brightness offset
+            #     frame = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
 
-                # --- Sharpness (Unsharp Mask) ---
-                sharpness = 25 / 100  # scale 0–1
-                blurred = cv2.GaussianBlur(frame, (0, 0), 3)
-                frame = cv2.addWeighted(frame, 1 + sharpness, blurred, -sharpness, 0)
-    
+            #     # --- Sharpness (Unsharp Mask) ---
+            #     sharpness = 25 / 100  # scale 0–1
+            #     blurred = cv2.GaussianBlur(frame, (0, 0), 3)
+            #     frame = cv2.addWeighted(frame, 1 + sharpness, blurred, -sharpness, 0)
+            
             detections = detect_objects(frame, camera_id)
             frame_with_detections = draw_detections(frame.copy(), detections, camera_id)
             encoded_frame = encode_frame(frame_with_detections)
@@ -225,7 +222,7 @@ async def camera_loop(camera_id):
             for d in disconnected:
                 CONNECTED_CLIENTS.discard(d)
 
-            await asyncio.sleep(0.016)  # ~60 FPS
+            await asyncio.sleep(1/30)  # ~30 FPS
 
     finally:
         cap.release()
@@ -319,6 +316,7 @@ def switch_model(model_path):
         # Load the new model
         new_model = YOLO(str(full_path))
         model = new_model
+        model.to("cuda")
         current_model_path = model_path
         logging.info(f"✅ Successfully switched to model: {model_path}")
         return True
@@ -419,9 +417,8 @@ async def main():
     # Scan for available models on startup
     available_models = scan_yolo_models()
     if available_models:
-        logging.info(f"Found {len(available_models)} YOLO model(s) available for selection")
         for m in available_models:
-            logging.info(f"  - {m['name']}: {m['path']}")
+            logging.info(f"- {m['name']}: {m['path']}")
     else:
         logging.warning("No YOLO models found in repository")
     
