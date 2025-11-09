@@ -18,8 +18,9 @@ logging.basicConfig(level=logging.INFO)
 # Global state
 CONNECTED_CLIENTS = set()
 ACTIVE_CAMERAS = {}  # {camera_id: task}
-model = YOLO("yolo_models/yolov8n.pt")
-model.to("cuda")
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = YOLO("yolov8n.pt").to(device)
+print(f"Using device: {device}")
 current_model_path = "yolo_models/yolov8n.pt"
 
 if(len(sys.argv) > 1):
