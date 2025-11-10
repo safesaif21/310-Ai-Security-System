@@ -1,0 +1,11 @@
+# Number of classes
+nc: 1
+
+# Class names
+names: ['suspicious person']
+
+# Paths to images
+train: images/train
+val: images/val
+
+

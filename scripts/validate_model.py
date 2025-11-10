@@ -20,7 +20,7 @@ def validate_model(model_path='runs/detect/security_detector/weights/best.pt'):
     
     # Per-class metrics
     print("\n📋 Per-Class Results:")
-    classes = ['person', 'weapon', 'object']
+    classes = ['suspicious person']
     for i, class_name in enumerate(classes):
         print(f"  {class_name}:")
         print(f"    AP50: {metrics.box.ap50[i]:.4f}")
