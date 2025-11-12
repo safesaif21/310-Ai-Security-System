@@ -18,9 +18,18 @@ logging.basicConfig(level=logging.INFO)
 # Global state
 CONNECTED_CLIENTS = set()
 ACTIVE_CAMERAS = {}  # {camera_id: task}
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model = YOLO("yolo_models/yolov8n.pt").to(device)
-print(f"Using device: {device}")
+
+device = "cuda"
+try:
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = YOLO("yolo_models/yolov8n.pt").to(device)
+    print(f"Using device: {device}")
+except Exception as e:
+    print(f"Falling back to CPU due to no GPU")
+    device = "cpu"
+    model = YOLO("yolo_models/yolov8n.pt").to(device)
+
+
 current_model_path = "yolo_models/yolov8n.pt"
 
 if(len(sys.argv) > 1):
@@ -317,7 +326,7 @@ def switch_model(model_path):
         # Load the new model
         new_model = YOLO(str(full_path))
         model = new_model
-        model.to("cuda")
+        model.to(device)
         current_model_path = model_path
         logging.info(f"✅ Successfully switched to model: {model_path}")
         return True
