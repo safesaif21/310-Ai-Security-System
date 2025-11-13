@@ -1,5 +1,6 @@
 from ultralytics import YOLO
 
+# Function to validate the trained model
 def validate_model(model_path='runs/detect/security_detector/weights/best.pt'):
     """Validate the trained model"""
     

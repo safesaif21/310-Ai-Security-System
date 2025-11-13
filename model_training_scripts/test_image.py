@@ -2,6 +2,7 @@ from ultralytics import YOLO
 import cv2
 import sys
 
+# Function to test model on a single image
 def test_on_image(image_path, model_path='runs/detect/security_detector/weights/best.pt'):
     """Test model on a single image"""
     

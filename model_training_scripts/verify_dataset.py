@@ -1,16 +1,18 @@
 import os
 from pathlib import Path
+import sys
 
-def verify_dataset():
+def verify_dataset(images_root, labels_root):
     """Verify dataset structure and files"""
     
-    base_path = Path('./data')
+    base_images = Path(images_root)
+    base_labels = Path(labels_root)
     
     # Directories
-    train_images = base_path / 'images' / 'train'
-    val_images = base_path / 'images' / 'val'
-    train_labels = base_path / 'labels' / 'train'
-    val_labels = base_path / 'labels' / 'val'
+    train_images = base_images / 'train'
+    val_images = base_images / 'val'
+    train_labels = base_labels / 'train'
+    val_labels = base_labels / 'val'
     
     print("🔍 Verifying dataset structure...\n")
     
@@ -60,7 +62,6 @@ def verify_dataset():
         for line in lines[:3]:
             parts = line.strip().split()
             if len(parts) == 5:
-                class_id = int(parts[0])
                 print(f"  ✅ suspicious person: {parts[1:5]}")
             else:
                 print(f"  ❌ Invalid format: {line.strip()}")
@@ -69,4 +70,10 @@ def verify_dataset():
     return True
 
 if __name__ == '__main__':
-    verify_dataset()
+    if len(sys.argv) < 3:
+        print("Usage: python verify_dataset.py <images_root> <labels_root>")
+        sys.exit(1)
+
+    images_root = sys.argv[1]
+    labels_root = sys.argv[2]
+    verify_dataset(images_root, labels_root)
