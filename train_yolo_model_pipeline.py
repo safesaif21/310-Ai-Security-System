@@ -3,11 +3,11 @@ import sys
 import os
 
 input_folder = sys.argv[1]
-class_number = sys.argv[2]
+name = sys.argv[2]
 
 def step1():
-    if len(sys.argv) < 4:
-        print("Usage: python pipeline.py <path_to_original_images> <class_number> <model_name>")
+    if len(sys.argv) < 3:
+        print("Usage: python pipeline.py <path_to_original_images> <model_name>")
         sys.exit(1)
 
     convert_script = os.path.join("model_training_scripts", "convert_images.py")
@@ -49,16 +49,13 @@ def step3():
         else:
             print("Please type 'y' when you have finished copying the labels.")
 
-def step4(base_path, new_class_index):
+def step4(base_path):
     verify_script = os.path.join("model_training_scripts", "verify_dataset.py")
     
     # Paths for images and labels
     images_root = os.path.join(base_path, "images", "split")
-
     labels_root = os.path.join(base_path, "labels", "split")
 
-    train_labels = os.path.join(labels_root, "train")
-    val_labels =  os.path.join(labels_root, "val")
     if not os.path.exists(images_root) or not os.path.exists(labels_root):
         print("❌ Images or labels root folder not found!")
         return
@@ -66,18 +63,6 @@ def step4(base_path, new_class_index):
     # 1️⃣ Run dataset verification
     print("⚙️ Running verify_dataset.py...")
     subprocess.run([sys.executable, verify_script, images_root, labels_root], check=True)
-
-    # 2️⃣ Update class numbers in label files
-    check_classes_script = os.path.join("model_training_scripts", "check_classes.py")
-    if not os.path.exists(check_classes_script):
-        print(f"❌ Could not find script at {check_classes_script}")
-        return
-
-    print(f"⚙️ Updating label class indices to {new_class_index} in train folder...")
-    subprocess.run([sys.executable, check_classes_script, train_labels, str(new_class_index)], check=True)
-
-    print(f"⚙️ Updating label class indices to {new_class_index} in val folder...")
-    subprocess.run([sys.executable, check_classes_script, val_labels, str(new_class_index)], check=True)
 
     print("✅ Step 4 completed: Dataset verified and labels updated.\n")
 
@@ -104,7 +89,7 @@ def step5():
         sys.exit(1)
 
 # === Step 6: Train YOLO model ===
-def step6(data_yaml_path):
+def step6(data_yaml_path, model_name):
     train_script = os.path.join("model_training_scripts", "train_model.py")
     
     if not os.path.exists(train_script):
@@ -115,7 +100,7 @@ def step6(data_yaml_path):
     
     try:
         subprocess.run(
-            [sys.executable, train_script, data_yaml_path],
+            [sys.executable, train_script, data_yaml_path, model_name],
             check=True
         )
         print("✅ YOLO model training completed successfully!\n")
@@ -125,14 +110,12 @@ def step6(data_yaml_path):
 
 if __name__ == "__main__":
     # === Normal full pipeline ===
-    #step1()
-    #step2()
-    #step3()  # will wait for user to copy labels
-    #step4(os.path.dirname(input_folder), class_number)
-    # step5()
+    # step1() # convert images to jpeg and resize
+    # step2() # split dataset
+    # step3()  # will wait for user to copy labels
+    # step4(os.path.dirname(input_folder)) # verify dataset and update class numbers
+    # step5() # generate data.yaml
 
-    # Step 6: train YOLO
-    # Construct the path to the generated data.yaml in the same folder as input images
     data_yaml_path = os.path.join(os.path.dirname(input_folder), "data.yaml")
-    step6(data_yaml_path)
+    step6(data_yaml_path, name) # train YOLO model
     print("🏁 Full YOLO data preprocessing pipeline completed successfully!")

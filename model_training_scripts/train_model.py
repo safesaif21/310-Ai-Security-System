@@ -5,7 +5,7 @@ import os
 import sys
 
 # Function to train YOLOv8 on any dataset given by a data.yaml
-def train_yolo_model(data_yaml_path):
+def train_yolo_model(data_yaml_path, model_name):
     """
     Train YOLOv8 on the dataset specified by data_yaml_path
     """
@@ -39,7 +39,7 @@ def train_yolo_model(data_yaml_path):
         epochs=25,                    # Fewer epochs for small dataset
         imgsz=640,                    # Image size
         batch=8,                      # Smaller batch for small dataset / GPU
-        name='security_detector',     # Experiment name
+        name=model_name,              # Experiment name
         patience=10,                  # Early stopping patience
         save=True,                    # Save checkpoints
         device=0 if torch.cuda.is_available() else 'cpu',  # GPU or CPU
@@ -66,10 +66,10 @@ def train_yolo_model(data_yaml_path):
     print("\n" + "="*60)
     print("✅ Training Completed!")
     print("="*60)
-    print(f"📁 Results: runs/detect/security_detector")
-    print(f"🏆 Best Model: runs/detect/security_detector/weights/best.pt")
-    print(f"📊 Last Model: runs/detect/security_detector/weights/last.pt")
-    print(f"📈 Metrics: runs/detect/security_detector/results.csv")
+    print(f"📁 Results: runs/detect/{model_name}")
+    print(f"🏆 Best Model: runs/detect/{model_name}/weights/best.pt")
+    print(f"📊 Last Model: runs/detect/{model_name}/weights/last.pt")
+    print(f"📈 Metrics: runs/detect/{model_name}/results.csv")
     print("="*60)
     
     return results
@@ -80,4 +80,5 @@ if __name__ == '__main__':
         sys.exit(1)
 
     data_yaml_path = sys.argv[1]
-    train_yolo_model(data_yaml_path)
+    model_name = sys.argv[2] if len(sys.argv) > 2 else "yolo_model_experiment"
+    train_yolo_model(data_yaml_path, model_name)

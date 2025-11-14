@@ -8,12 +8,8 @@ def create_data_yaml(base_path):
     """
     # Map of original COCO IDs to names
     coco_classes = {
-        0: "person",
-        1: "knife",
-        2: "scissors",
-        3: "baseball bat",
-        4: "sus person"  # new custom class
-    }
+            0: 'person',
+            1: 'sus person'}
 
     # YOLO requires contiguous 0-based indices for training
     classes = list(coco_classes.values())

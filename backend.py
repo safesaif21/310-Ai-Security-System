@@ -66,7 +66,21 @@ def detect_objects(frame, camera_id):
         'alert': None
     }
 
-    weapon_classes = {43: 'Knife', 34: 'Baseball Bat', 76: 'Scissors'}
+    WEAPON_CONF_THRESHOLD = 0.90
+
+    # Your weapon class mapping
+
+    if(current_model_path == "yolo_models/pre-trained-sus-saif-only.pt"):
+        weapon_classes = {
+            1: 'Sus Person'
+        }
+    else:
+        weapon_classes = {
+            43: 'Knife',
+            34: 'Baseball Bat',
+            76: 'Scissors'
+        }
+
     weapon_found = False
 
     for result in results:
@@ -76,6 +90,7 @@ def detect_objects(frame, camera_id):
             x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().tolist()
             label = model.names[cls]
 
+            # People
             if cls == 0:
                 detections['people'].append({
                     'bbox': [x1, y1, x2, y2],
@@ -83,7 +98,8 @@ def detect_objects(frame, camera_id):
                 })
                 detections['people_count'] += 1
 
-            elif cls in weapon_classes:
+            # Weapons — but ONLY if confidence ≥ threshold
+            elif cls in weapon_classes and conf >= WEAPON_CONF_THRESHOLD:
                 weapon_found = True
                 detections['weapons'].append({
                     'name': weapon_classes[cls],
@@ -91,6 +107,7 @@ def detect_objects(frame, camera_id):
                     'bbox': [x1, y1, x2, y2]
                 })
 
+            # Everything else
             else:
                 detections['objects'].append({
                     'name': label,
