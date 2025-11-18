@@ -367,6 +367,11 @@ def draw_detections(frame, detections, camera_id=None):
     return frame
 
 
+def process_frame_cpu(frame, detections, camera_id):
+    frame_with_detections = draw_detections(frame, detections, camera_id)
+    encoded_frame = encode_frame(frame_with_detections)
+    return encoded_frame
+
 async def camera_loop(camera_id):
     """Continuously capture and process frames for one camera - optimized for smoothness"""
     cap = cv2.VideoCapture(camera_id)
@@ -437,9 +442,8 @@ async def camera_loop(camera_id):
             detections = detect_objects(frame, camera_id)
             
             # Draw on original resolution frame
-            frame_with_detections = draw_detections(original_frame, detections, camera_id)
-            encoded_frame = encode_frame(frame_with_detections)
-            
+            encoded_frame = await asyncio.to_thread(process_frame_cpu, original_frame, detections, camera_id)
+
             # Store for next iterations
             last_detections = detections
             last_encoded_frame = encoded_frame

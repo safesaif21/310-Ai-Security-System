@@ -1,3 +1,4 @@
+from cProfile import label
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
@@ -9,7 +10,10 @@ import base64
 import io
 import numpy as np
 import os
-import math
+from queue import Full, Queue
+import time
+from collections import deque
+import cv2
 
 num_of_cameras = 0  # Placeholder for number of cameras
 
@@ -25,9 +29,11 @@ class SecuritySystemGUI:
         self.ws = None
         self.connected = False
         self.cameras_active = False
-        self.current_frames = [None] * num_of_cameras  # support multiple feeds
         self.available_models = []
         self.current_model_path = None
+        self.frame_queues = [Queue(maxsize=1) for _ in range(num_of_cameras)]
+        self.last_frame_time = [time.time()] * num_of_cameras
+        self.fps_deque = [deque(maxlen=10) for _ in range(num_of_cameras)]  # smoothing
         
         # Stats
         self.threat_level = 0
@@ -36,6 +42,9 @@ class SecuritySystemGUI:
         self.alert_count = 0
         
         self.setup_ui()
+
+        # Start the display loop
+        self.update_display()
     
     def setup_ui(self):
         """Setup the user interface"""
@@ -262,8 +271,16 @@ class SecuritySystemGUI:
         self.status_label = tk.Label(status_stat, text="INACTIVE", font=("Arial", 16, "bold"), bg='#1e293b', fg='white')
         self.status_label.pack(pady=5)
     
+    def print_grid_sizes(self):
+        print("=== GRID CELL DIMENSIONS ===")
+        for i, label in enumerate(self.video_labels):
+            w = label.winfo_width()
+            h = label.winfo_height()
+            print(f"Camera {i+1}: {w} x {h}")
+
+
     def create_camera_grid(self):
-        """Create dynamic camera feed grid based on number of cameras"""
+        """Create dynamic camera feed grid based on number of cameras using Canvas for OpenCV frames"""
         cams = self.num_of_cameras
         
         # Determine grid layout
@@ -278,25 +295,32 @@ class SecuritySystemGUI:
         else:
             rows, cols = (cams // 4) + 1, 4
 
-        self.video_labels = []
+        self.video_canvases = []
+        self.video_canvas_images = []  # hold references to avoid garbage collection
         index = 0
         for r in range(rows):
             for c in range(cols):
                 if index < cams:
-                    label = tk.Label(
+                    # Create canvas instead of label
+                    canvas = tk.Canvas(
                         self.video_grid,
                         bg="#0f172a",
-                        relief=tk.SOLID,
-                        bd=1,
-                        text=f"Camera {index+1}",
-                        fg="white",
-                        font=("Arial", 10)
+                        highlightthickness=0
                     )
-                    label.grid(row=r, column=c, padx=5, pady=5, sticky="nsew")
-                    self.video_labels.append(label)
+                    canvas.grid(row=r, column=c, sticky="nsew", padx=5, pady=5)
+
+                    # Create a placeholder black image (frame will be replaced in update_display)
+                    placeholder = np.zeros((240, 320, 3), dtype=np.uint8)
+                    photo = ImageTk.PhotoImage(image=Image.fromarray(placeholder))
+                    canvas.create_image(0, 0, anchor="nw", image=photo)
+
+                    # Store references
+                    self.video_canvases.append(canvas)
+                    self.video_canvas_images.append(photo)
+
                     index += 1
                 else:
-                    # fill empty slots so grid is balanced
+                    # Fill empty slots so grid is balanced
                     tk.Label(self.video_grid, bg="#1e293b").grid(
                         row=r, column=c, padx=5, pady=5, sticky="nsew"
                     )
@@ -307,52 +331,60 @@ class SecuritySystemGUI:
         for c in range(cols):
             self.video_grid.columnconfigure(c, weight=1)
 
+
     def connect_to_server(self):
         """Connect to WebSocket server"""
         def on_message(ws, message):
             try:
                 data = json.loads(message)
-                
+
                 if data['type'] == 'frame':
                     cam_id = data.get('camera_id', 0)
-                    img_bytes = base64.b64decode(data['frame'])
-                    img = Image.open(io.BytesIO(img_bytes))
-                    self.current_frames[cam_id] = img  # store per camera
                     
-                    # Update detections (for global stats)
+                    # Decode base64 to bytes
+                    img_bytes = base64.b64decode(data['frame'])
+
+                    # Convert bytes to NumPy array (OpenCV compatible)
+                    np_arr = np.frombuffer(img_bytes, np.uint8)
+                    frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)  # BGR format
+
+                    # Store in camera queue
+                    # Put into queue (overwrite if full)
+                    try:
+                        self.frame_queues[cam_id].put_nowait(frame)
+                    except Full:
+                        self.frame_queues[cam_id].get_nowait()  # remove old frame
+                        self.frame_queues[cam_id].put_nowait(frame)
+
+                    # Update detections
                     detections = data['detections']
                     self.threat_level = detections['threat_level']
                     self.people_count = detections['people_count']
                     self.detected_weapons = detections['weapons']
-
                     if len(detections['weapons']) > 0:
                         self.alert_count += 1
 
-                    self.root.after(0, self.update_display)
-                    
-                if data['type'] == 'camera_list':
+                # Handle camera list or model updates as before
+                elif data['type'] == 'camera_list':
                     cameras = data.get('cameras', [])
                     self.num_of_cameras = len(cameras)
-                    print(f"Activated {len(cameras)} cameras: {cameras}")
                     self.root.after(0, lambda: self.refresh_camera_grid(len(cameras)))
-                if data['type'] == 'innit':
+                elif data['type'] == 'innit':
                     global num_of_cameras
                     num_of_cameras = data['cameras']
-                    # Handle available models
                     available_models = data.get('available_models', [])
                     current_model = data.get('current_model', '')
                     self.root.after(0, lambda: self.update_model_list(available_models, current_model))
-                
-                if data['type'] == 'model_switched':
+                elif data['type'] == 'model_switched':
                     model_path = data.get('model_path', '')
                     message = data.get('message', 'Model switched')
                     self.root.after(0, lambda: self.on_model_switched_success(model_path, message))
-                
-                if data['type'] == 'error' and 'model' in data.get('message', '').lower():
+                elif data['type'] == 'error' and 'model' in data.get('message', '').lower():
                     error_msg = data.get('message', 'Error switching model')
                     self.root.after(0, lambda: self.on_model_switch_error(error_msg))
+
             except Exception as e:
-                print(f"Error: {e}")
+                print(f"Error processing WebSocket message: {e}")
         
         def on_open(ws):
             self.connected = True
@@ -498,41 +530,64 @@ class SecuritySystemGUI:
             
             self.status_emoji.config(text="🔴")
             self.status_label.config(text="INACTIVE")
-    
+
     def update_display(self):
-        """Update all camera feeds and stats"""
-        for i, frame in enumerate(self.current_frames):
-            if frame is not None:
-                display_img = frame.copy()
-                display_img.thumbnail((400, 300), Image.Resampling.LANCZOS)
-                photo = ImageTk.PhotoImage(display_img)
-                self.video_labels[i].config(image=photo, text=f"Camera {i+1}")
-                self.video_labels[i].image = photo
-        
-        # Update threat level
+        """Update all camera feeds and stats using Canvas + OpenCV frames with proper aspect ratio"""
+        now = time.time()
+
+        for i, q in enumerate(self.frame_queues):
+            if not q.empty():
+                frame = q.get()  # frame is a BGR NumPy array
+
+                # Compute FPS
+                dt = now - self.last_frame_time[i]
+                self.last_frame_time[i] = now
+                fps = 1 / dt if dt > 0 else 0.0
+
+                # Smooth FPS over last 10 frames
+                self.fps_deque[i].append(fps)
+                avg_fps = sum(self.fps_deque[i]) / len(self.fps_deque[i])
+
+                # Resize frame to fit canvas while preserving aspect ratio
+                canvas = self.video_canvases[i]
+                cw = canvas.winfo_width() or frame.shape[1]
+                ch = canvas.winfo_height() or frame.shape[0]
+
+                h, w = frame.shape[:2]
+                scale = min(cw / w, ch / h)
+                new_w, new_h = int(w * scale), int(h * scale)
+                frame_resized = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+
+                # Overlay FPS
+                cv2.putText(frame_resized, f"FPS: {avg_fps:.1f}", (10, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+                # Convert to RGB for Tkinter
+                rgb_frame = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
+                photo = ImageTk.PhotoImage(Image.fromarray(rgb_frame))
+
+                # Center the frame on the canvas
+                x_offset = (cw - new_w) // 2
+                y_offset = (ch - new_h) // 2
+                canvas.coords(1, x_offset, y_offset)
+                canvas.itemconfig(1, image=photo)
+                self.video_canvas_images[i] = photo  # keep reference to avoid GC
+
+        # Update textual GUI stats
         self.threat_label.config(text=f"{self.threat_level}/10")
-        
-        # Color and status based on threat level
         if self.threat_level == 0:
-            color = '#10b981'
-            status = 'SAFE'
+            color, status = '#10b981', 'SAFE'
         elif self.threat_level <= 3:
-            color = '#22c55e'
-            status = 'LOW'
+            color, status = '#22c55e', 'LOW'
         elif self.threat_level <= 6:
-            color = '#f59e0b'
-            status = 'MODERATE'
+            color, status = '#f59e0b', 'MODERATE'
         elif self.threat_level <= 8:
-            color = '#ef4444'
-            status = 'HIGH'
+            color, status = '#ef4444', 'HIGH'
         else:
-            color = '#dc2626'
-            status = 'CRITICAL'
-        
+            color, status = '#dc2626', 'CRITICAL'
         self.threat_label.config(fg=color)
         self.threat_status.config(text=status, fg=color)
-        
-        # Update weapon detection
+
         if self.detected_weapons:
             weapon_text = f"⚠️ {len(self.detected_weapons)} WEAPON(S) DETECTED!\n\n"
             for weapon in self.detected_weapons:
@@ -540,10 +595,12 @@ class SecuritySystemGUI:
             self.weapon_label.config(text=weapon_text, fg='#ef4444')
         else:
             self.weapon_label.config(text="✅ No Weapon Detected", fg='#10b981')
-        
-        # Update stats
+
         self.people_label.config(text=str(self.people_count))
         self.alert_label.config(text=str(self.alert_count))
+
+        # Schedule next update (~30 FPS)
+        self.root.after(33, self.update_display)
 
     def refresh_camera_grid(self, new_count):
         """Recreate grid if number of active cameras changed"""
