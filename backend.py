@@ -18,9 +18,18 @@ logging.basicConfig(level=logging.INFO)
 # Global state
 CONNECTED_CLIENTS = set()
 ACTIVE_CAMERAS = {}  # {camera_id: task}
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model = YOLO("yolo_models/yolov8n.pt").to(device)
-print(f"Using device: {device}")
+
+device = "cuda"
+try:
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = YOLO("yolo_models/yolov8n.pt").to(device)
+    print(f"Using device: {device}")
+except Exception as e:
+    print(f"Falling back to CPU due to no GPU")
+    device = "cpu"
+    model = YOLO("yolo_models/yolov8n.pt").to(device)
+
+
 current_model_path = "yolo_models/yolov8n.pt"
 
 if(len(sys.argv) > 1):
@@ -57,7 +66,21 @@ def detect_objects(frame, camera_id):
         'alert': None
     }
 
-    weapon_classes = {43: 'Knife', 34: 'Baseball Bat', 76: 'Scissors'}
+    WEAPON_CONF_THRESHOLD = 0.90
+
+    # Your weapon class mapping
+
+    if(current_model_path == "yolo_models/pre-trained-sus-saif-only.pt"):
+        weapon_classes = {
+            1: 'Sus Person'
+        }
+    else:
+        weapon_classes = {
+            43: 'Knife',
+            34: 'Baseball Bat',
+            76: 'Scissors'
+        }
+
     weapon_found = False
 
     for result in results:
@@ -67,6 +90,7 @@ def detect_objects(frame, camera_id):
             x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().tolist()
             label = model.names[cls]
 
+            # People
             if cls == 0:
                 detections['people'].append({
                     'bbox': [x1, y1, x2, y2],
@@ -74,7 +98,8 @@ def detect_objects(frame, camera_id):
                 })
                 detections['people_count'] += 1
 
-            elif cls in weapon_classes:
+            # Weapons — but ONLY if confidence ≥ threshold
+            elif cls in weapon_classes and conf >= WEAPON_CONF_THRESHOLD:
                 weapon_found = True
                 detections['weapons'].append({
                     'name': weapon_classes[cls],
@@ -82,6 +107,7 @@ def detect_objects(frame, camera_id):
                     'bbox': [x1, y1, x2, y2]
                 })
 
+            # Everything else
             else:
                 detections['objects'].append({
                     'name': label,
@@ -317,7 +343,7 @@ def switch_model(model_path):
         # Load the new model
         new_model = YOLO(str(full_path))
         model = new_model
-        model.to("cuda")
+        model.to(device)
         current_model_path = model_path
         logging.info(f"✅ Successfully switched to model: {model_path}")
         return True
