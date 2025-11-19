@@ -9,7 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import cv2
 import threading
 import time
-import os
 from pathlib import Path
 from ultralytics import YOLO
 
@@ -28,6 +27,11 @@ app.add_middleware(
 cameras = {}
 camera_locks = {}
 
+# Stat variables - track per camera
+camera_people_counts = {}  # {camera_id: count}
+camera_weapon_detected = {}  # {camera_id: bool}
+stats_lock = threading.Lock()
+
 # YOLO model management
 current_model = None
 model_lock = threading.Lock()
@@ -45,10 +49,39 @@ def get_camera(camera_id: int):
         cap.set(cv2.CAP_PROP_FPS, 15)  # Limit FPS
         cameras[camera_id] = cap
         camera_locks[camera_id] = threading.Lock()
+        # Initialize stats for this camera
+        camera_people_counts[camera_id] = 0
+        camera_weapon_detected[camera_id] = False
     return cameras[camera_id], camera_locks[camera_id]
+
+def calculate_threat_level():
+    """Calculate threat level based on detections across all cameras"""
+    # Sum people across all cameras
+    total_people = sum(camera_people_counts.values())
+    # Check if any camera detected a weapon
+    any_weapon = any(camera_weapon_detected.values())
+    
+    level = 0
+    
+    # Base threat from people count
+    if total_people > 0:
+        people_threat = min(total_people, 3)  # Max 3 points for people
+        level += people_threat
+    
+    # Weapon detection - major threat
+    if any_weapon:
+        level += 5
+    
+    # Multiple people + weapon = critical
+    if total_people > 1 and any_weapon:
+        level += 2
+    
+    return min(level, 10)  # Cap at 10
+
 
 def generate_mjpeg_stream(camera_id: int):
     """Generate MJPEG stream for a camera"""
+    
     cap, lock = get_camera(camera_id)
     
     while True:
@@ -60,6 +93,10 @@ def generate_mjpeg_stream(camera_id: int):
             time.sleep(0.1)
             continue
         
+        # Reset detection counters for this frame
+        frame_people_count = 0
+        frame_weapon_detected = False
+        
         # Apply YOLO detection if enabled
         if detection_enabled and current_model is not None:
             with model_lock:
@@ -67,15 +104,17 @@ def generate_mjpeg_stream(camera_id: int):
                     # Run inference
                     results = current_model(frame, verbose=False)
                     
-                    # Draw detections for person class (class 0)
+                    # Draw detections
                     for result in results:
                         boxes = result.boxes
                         for box in boxes:
-                            # Check if it's a person (class 0)
-                            if int(box.cls[0]) == 0:
-                                # Get coordinates
-                                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                                confidence = float(box.conf[0])
+                            class_id = int(box.cls[0])
+                            confidence = float(box.conf[0])
+                            x1, y1, x2, y2 = map(int, box.xyxy[0])
+                            
+                            # Person detection (class 0)
+                            if class_id == 0:
+                                frame_people_count += 1
                                 
                                 # Draw bounding box
                                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
@@ -87,13 +126,13 @@ def generate_mjpeg_stream(camera_id: int):
                                             (x1 + label_size[0], y1), (0, 255, 0), -1)
                                 cv2.putText(frame, label, (x1, y1 - 5), 
                                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
-                            if int(box.cls[0]) == 43: # knife class
-                                # Get coordinates
-                                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                                confidence = float(box.conf[0])
+                            
+                            # Knife detection (class 43)
+                            elif class_id == 43:
+                                frame_weapon_detected = True
                                 
                                 # Draw bounding box
-                                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 225), 2)
+                                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
                                 
                                 # Draw label
                                 label = f"Knife {confidence:.2f}"
@@ -101,11 +140,11 @@ def generate_mjpeg_stream(camera_id: int):
                                 cv2.rectangle(frame, (x1, y1 - label_size[1] - 10), 
                                             (x1 + label_size[0], y1), (0, 0, 255), -1)
                                 cv2.putText(frame, label, (x1, y1 - 5), 
-                                          cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
-                            if int(box.cls[0]) == 76: # Scissors class
-                                # Get coordinates
-                                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                                confidence = float(box.conf[0])
+                                          cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                            
+                            # Scissors detection (class 76)
+                            elif class_id == 76:
+                                frame_weapon_detected = True
                                 
                                 # Draw bounding box
                                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
@@ -116,9 +155,20 @@ def generate_mjpeg_stream(camera_id: int):
                                 cv2.rectangle(frame, (x1, y1 - label_size[1] - 10), 
                                             (x1 + label_size[0], y1), (0, 0, 255), -1)
                                 cv2.putText(frame, label, (x1, y1 - 5), 
-                                          cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+                                          cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                    
+                    # Update this camera's stats with thread safety
+                    with stats_lock:
+                        camera_people_counts[camera_id] = frame_people_count
+                        camera_weapon_detected[camera_id] = frame_weapon_detected
+                        
                 except Exception as e:
                     print(f"Detection error: {e}")
+        else:
+            # If detection is disabled, reset this camera's stats
+            with stats_lock:
+                camera_people_counts[camera_id] = 0
+                camera_weapon_detected[camera_id] = False
         
         # Encode frame as JPEG
         ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
@@ -140,7 +190,9 @@ async def root():
         "endpoints": {
             "camera_stream": "/camera/{camera_id}",
             "camera_list": "/cameras",
-            "camera_info": "/camera/{camera_id}/info"
+            "camera_info": "/camera/{camera_id}/info",
+            "stats": "/stats",
+            "models": "/models"
         }
     }
 
@@ -262,11 +314,33 @@ async def toggle_detection(enabled: bool):
     detection_enabled = enabled
     status = "enabled" if enabled else "disabled"
     
+    # Reset all stats when toggling
+    if not enabled:
+        with stats_lock:
+            for camera_id in camera_people_counts:
+                camera_people_counts[camera_id] = 0
+                camera_weapon_detected[camera_id] = False
+    
     return {
         "success": True,
         "message": f"Detection {status}",
         "detection_enabled": detection_enabled
     }
+
+@app.get("/stats")
+async def get_stats():
+    """Get current detection statistics"""
+    
+    with stats_lock:
+        total_people = sum(camera_people_counts.values())
+        any_weapon = any(camera_weapon_detected.values())
+        threat_level = calculate_threat_level()
+        
+        return {
+            "people_count": total_people,
+            "weapon_detected": any_weapon,
+            "threat_level": threat_level
+        }
 
 @app.on_event("shutdown")
 async def shutdown_event():
