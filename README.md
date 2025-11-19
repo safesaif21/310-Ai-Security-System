@@ -7,10 +7,6 @@ An AI-powered security dashboard with real-time threat detection, weapon identif
 
 # Project Setup Guide
 
-This guide explains how to set up a Python virtual environment for this project and how to activate it on different operating systems.
-
----
-
 ## 1. Create a Virtual Environment
 
 Run the following command to create a virtual environment named `.venv`:
@@ -40,27 +36,7 @@ source .venv/bin/activate
 
 ---
 
-## 3. Deactivate the Virtual Environment
-
-To deactivate, simply run:
-
-```bash
-deactivate
-```
-
----
-
-## 4. Git Ignore Configuration
-
-A `.gitignore` file is included to ensure the virtual environment is not committed to version control.
-
-```
-.venv/
-```
-
----
-
-## 5. Installing Dependencies
+## 3. Installing Dependencies
 
 Once the virtual environment is active, install dependencies with:
 
@@ -70,53 +46,26 @@ pip install -r requirements.txt
 
 ---
 
-## 6. Freezing Dependencies
-
-To save newly installed packages into `requirements.txt`:
-
-```bash
-pip freeze > requirements.txt
-```
-
----
-
-
 ## 7. Run server
 
 To start the WebSocket server, run:
 
 ```bash
-python backend.py
+uvicorn backend:app --reload
 ```
 
 ---
 
 
-## 8. Run frontend with tkinter
+## 8. Run frontend
 
-To start the Tkinter frontend, run:
+To start the frontend, open the index.html file in a chrome browser:
 
 ```bash
-python frontend.py
+Path/to/index.html
 ```
 
-*prospective updates to readme below*
-
-## ⚙️ Configuration
-
-### Adjust Detection Threshold
-
-Edit `backend.py`
-```python
-if confidence >= 0.5:  # Change to 0.7 for stricter detection
-```
-
-### Modify Frame Rate
-
-Edit `backedn.py`
-```python
-time.sleep(0.03)  # Decrease for faster, increase for slower
-```
+---
 
 ## 📊 Threat Calculation
 
@@ -125,8 +74,8 @@ The system calculates threat levels based on:
 | Factor | Impact | Points |
 |--------|--------|--------|
 | Weapon detected | High | +7 per weapon |
-| 5+ people | Medium | +2 points |
-| 3-4 people | Low | +1 point |
+| 1 people | low | +1 points |
+| 3-4 people | Medium | +3 point |
 
 **Maximum**: Capped at 10
 
@@ -136,32 +85,31 @@ The system calculates threat levels based on:
 
 ```
 310-AI-Security-System/
-├── backend.py               # WebSocket backend server (main backend)
-├── frontend.py              # Tkinter frontend UI (main frontend)
-├── dashboard.py             # Streamlit dashboard
-├── human_detection_test.py  # YOLOv8 script
-├── requirements.txt         # Python dependencies
-├── YOLO_example_guide.md    # YOLO instructions
-├── yolov8n.pt               # Default YOLOv8 model
-├── README.md                # This file
-├── .gitignore               # Git ignore rules
+├── backend.py                      # WebSocket backend server
+├── index.html                      # frontend UI
+├── train_yolo_model_pipeline.py    # Yolo training pipeline
+├── requirements.txt                # Python dependencies
+├── README.md                       # This file
+├── .gitignore                      # Git ignore rules
 │
-├── data/
-│   └── data.yml             # Dataset configuration
+├── model_training_scripts/
+│   └── # contains python scripts used by model training pipeline
 │
-├── scripts/                 # Training & evaluation scripts
-│   ├── verify_dataset.py    # Verify dataset integrity
-│   ├── train_security.py    # Main training script
-│   ├── validate_model.py    # Validate trained model
-│   └── test_image.py        # Test model on a single image
+├── runs/
+│   └── # contains performance metrics of custom model training sessions
 │
-└── examples/                # Example usage scripts
-    └── example_usage.py     # Simple usage example
+└── yolo_models/
+    └── # contains all of the selectable yolo models in our program
 ```
 
-## 🎓 How It Works
+## 🎓 Workflow Diagram
 
 *insert workflow diagram here*
+
+
+# 🎯 YOLOv8 Training Guide - AI Security System
+
+Quick guide to train our custom YOLOv8 model to detect any class you want in our security system can be found [here](https://youtu.be/z9F9Hssbi-4).
 
 ## 📄 License
 
@@ -170,17 +118,11 @@ This project is licensed under the MIT License.
 ## Acknowledgments
 
 - **Ultralytics YOLOv8** - State-of-the-art object detection
-
-# 🎯 YOLOv8 Training Guide - AI Security System
-
-Quick guide to train our custom YOLOv8 model to detect **person**, **weapon**, and **object** in our security system.
-
-
-## 🔧 Prerequisites
-
-All dependencies are in `requirements.txt`
-
+- **COCO Dataset** - Large image collection dataset
 ---
+
+# REMAINDER OF THIS DOCUMENT WILL PROBABLY NOT BE INCLUDED IN THIS README BUT COULD BE GOOD FOR PROJECT WRITE UP OR HOW TO GUIDE
+
 
 ## 📊 Dataset Setup
 
@@ -551,4 +493,3 @@ python scripts/verify_dataset.py
 python scripts/train_security.py
 ```
 
----

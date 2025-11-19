@@ -11,6 +11,7 @@ import threading
 import time
 from pathlib import Path
 from ultralytics import YOLO
+import uvicorn
 
 app = FastAPI()
 
@@ -390,5 +391,4 @@ async def shutdown_event():
     print("All cameras released")
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
