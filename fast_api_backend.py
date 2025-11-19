@@ -104,58 +104,98 @@ def generate_mjpeg_stream(camera_id: int):
                     # Run inference
                     results = current_model(frame, verbose=False)
                     
-                    # Draw detections
-                    for result in results:
-                        boxes = result.boxes
-                        for box in boxes:
-                            class_id = int(box.cls[0])
-                            confidence = float(box.conf[0])
-                            x1, y1, x2, y2 = map(int, box.xyxy[0])
-                            
-                            # Person detection (class 0)
-                            if class_id == 0:
-                                frame_people_count += 1
+                    if current_model.model_name == 'pre-trained-sus-saif-only.pt':
+                        # Draw custom detections
+                        for result in results:
+                            boxes = result.boxes
+                            for box in boxes:
+                                class_id = int(box.cls[0])
+                                confidence = float(box.conf[0])
+                                x1, y1, x2, y2 = map(int, box.xyxy[0])
                                 
-                                # Draw bounding box
-                                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                                # Sus Person detection (class 0)
+                                if class_id == 0:
+                                    frame_weapon_detected = True
+                                    frame_people_count += 1
+                                    
+                                    # Draw bounding box
+                                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                                    
+                                    # Draw label
+                                    label = f"Sus Person {confidence:.2f}"
+                                    label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+                                    cv2.rectangle(frame, (x1, y1 - label_size[1] - 10), 
+                                                (x1 + label_size[0], y1), (0, 0, 255), -1)
+                                    cv2.putText(frame, label, (x1, y1 - 5), 
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
                                 
-                                # Draw label
-                                label = f"Person {confidence:.2f}"
-                                label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-                                cv2.rectangle(frame, (x1, y1 - label_size[1] - 10), 
-                                            (x1 + label_size[0], y1), (0, 255, 0), -1)
-                                cv2.putText(frame, label, (x1, y1 - 5), 
-                                          cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
-                            
-                            # Knife detection (class 43)
-                            elif class_id == 43:
-                                frame_weapon_detected = True
+                                # Person detection (class 1)
+                                elif class_id == 1:
+                                    
+                                    frame_people_count += 1
+                                    # Draw bounding box
+                                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                                    
+                                    # Draw label
+                                    label = f"Person {confidence:.2f}"
+                                    label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+                                    cv2.rectangle(frame, (x1, y1 - label_size[1] - 10), 
+                                                (x1 + label_size[0], y1), (0, 255, 0), -1)
+                                    cv2.putText(frame, label, (x1, y1 - 5), 
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                    else:
+                        # Draw detections
+                        for result in results:
+                            boxes = result.boxes
+                            for box in boxes:
+                                class_id = int(box.cls[0])
+                                confidence = float(box.conf[0])
+                                x1, y1, x2, y2 = map(int, box.xyxy[0])
                                 
-                                # Draw bounding box
-                                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                                # Person detection (class 0)
+                                if class_id == 0:
+                                    frame_people_count += 1
+                                    
+                                    # Draw bounding box
+                                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                                    
+                                    # Draw label
+                                    label = f"Person {confidence:.2f}"
+                                    label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+                                    cv2.rectangle(frame, (x1, y1 - label_size[1] - 10), 
+                                                (x1 + label_size[0], y1), (0, 255, 0), -1)
+                                    cv2.putText(frame, label, (x1, y1 - 5), 
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
                                 
-                                # Draw label
-                                label = f"Knife {confidence:.2f}"
-                                label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-                                cv2.rectangle(frame, (x1, y1 - label_size[1] - 10), 
-                                            (x1 + label_size[0], y1), (0, 0, 255), -1)
-                                cv2.putText(frame, label, (x1, y1 - 5), 
-                                          cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-                            
-                            # Scissors detection (class 76)
-                            elif class_id == 76:
-                                frame_weapon_detected = True
+                                # Knife detection (class 43)
+                                elif class_id == 43:
+                                    frame_weapon_detected = True
+                                    
+                                    # Draw bounding box
+                                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                                    
+                                    # Draw label
+                                    label = f"Knife {confidence:.2f}"
+                                    label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+                                    cv2.rectangle(frame, (x1, y1 - label_size[1] - 10), 
+                                                (x1 + label_size[0], y1), (0, 0, 255), -1)
+                                    cv2.putText(frame, label, (x1, y1 - 5), 
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
                                 
-                                # Draw bounding box
-                                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
-                                
-                                # Draw label
-                                label = f"Scissors {confidence:.2f}"
-                                label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-                                cv2.rectangle(frame, (x1, y1 - label_size[1] - 10), 
-                                            (x1 + label_size[0], y1), (0, 0, 255), -1)
-                                cv2.putText(frame, label, (x1, y1 - 5), 
-                                          cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                                # Scissors detection (class 76)
+                                elif class_id == 76:
+                                    frame_weapon_detected = True
+                                    
+                                    # Draw bounding box
+                                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                                    
+                                    # Draw label
+                                    label = f"Scissors {confidence:.2f}"
+                                    label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+                                    cv2.rectangle(frame, (x1, y1 - label_size[1] - 10), 
+                                                (x1 + label_size[0], y1), (0, 0, 255), -1)
+                                    cv2.putText(frame, label, (x1, y1 - 5), 
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
                     
                     # Update this camera's stats with thread safety
                     with stats_lock:
