@@ -18,13 +18,19 @@ logging.basicConfig(level=logging.INFO)
 # Global state
 CONNECTED_CLIENTS = set()
 ACTIVE_CAMERAS = {}  # {camera_id: task}
-device = "cuda" if torch.cuda.is_available() else "cpu"
-# Use yolov8l.pt (large) for best accuracy - significantly better weapon detection
-# Model sizes: nano (37% mAP) < small (45% mAP) < medium (50% mAP) < large (53% mAP) < xlarge (54% mAP)
-model = YOLO("yolo_models/yolov8l.pt").to(device)
-print(f"Using device: {device}")
-print(f"Loaded model: yolov8l.pt (Large - Best accuracy for weapon detection, 53% mAP)")
-current_model_path = "yolo_models/yolov8l.pt"
+
+device = "cuda"
+try:
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = YOLO("yolo_models/yolov8n.pt").to(device)
+    print(f"Using device: {device}")
+except Exception as e:
+    print(f"Falling back to CPU due to no GPU")
+    device = "cpu"
+    model = YOLO("yolo_models/yolov8n.pt").to(device)
+
+
+current_model_path = "yolo_models/yolov8n.pt"
 
 if(len(sys.argv) > 1):
     num_of_cameras = int(sys.argv[1])
@@ -120,6 +126,22 @@ def detect_objects(frame, camera_id):
         WEAPON_DETECTION_HISTORY[camera_id] = []
     
     weapon_candidates = []  # Store potential weapon detections before temporal smoothing
+    WEAPON_CONF_THRESHOLD = 0.90
+
+    # Your weapon class mapping
+
+    if(current_model_path == "yolo_models/pre-trained-sus-saif-only.pt"):
+        weapon_classes = {
+            1: 'Sus Person'
+        }
+    else:
+        weapon_classes = {
+            43: 'Knife',
+            34: 'Baseball Bat',
+            76: 'Scissors'
+        }
+
+    weapon_found = False
 
     for result in results:
         for box in result.boxes:
@@ -151,6 +173,7 @@ def detect_objects(frame, camera_id):
                         'class': cls
                     })
 
+            # Everything else
             else:
                 # Other objects with standard threshold
                 if conf >= OBJECT_CONF_THRESHOLD:
@@ -562,7 +585,7 @@ def switch_model(model_path):
         # Load the new model
         new_model = YOLO(str(full_path))
         model = new_model
-        model.to("cuda")
+        model.to(device)
         current_model_path = model_path
         logging.info(f"✅ Successfully switched to model: {model_path}")
         return True

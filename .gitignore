@@ -4,3 +4,4 @@ runs/
 .DS_Store
 data/images/
 data/labels/
+data/converted_images
