@@ -11,12 +11,14 @@
             box-sizing: border-box;
         }
 
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #1a1d29;
-            min-height: 100vh;
-            padding: 0;
-            margin: 0;
             color: #e0e0e0;
         }
 
@@ -48,7 +50,14 @@
         .main-content {
             background: #1a1d29;
             padding: 20px;
-            overflow-y: auto;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .controls-section {
+            flex-shrink: 0;
         }
 
         .controls-section h2 {
@@ -228,8 +237,38 @@
 
         .camera-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
             gap: 15px;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .camera-grid.cameras-1 {
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr;
+        }
+
+        .camera-grid.cameras-2 {
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: 1fr;
+        }
+
+        .camera-grid.cameras-3,
+        .camera-grid.cameras-4 {
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+        }
+
+        .camera-grid.cameras-5,
+        .camera-grid.cameras-6 {
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+        }
+
+        .camera-grid.cameras-7,
+        .camera-grid.cameras-8,
+        .camera-grid.cameras-9 {
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
         }
 
         .camera-card {
@@ -238,6 +277,9 @@
             overflow: hidden;
             border: 2px solid #3a3d4a;
             transition: transform 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
         }
 
         .camera-card:hover {
@@ -254,13 +296,14 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-shrink: 0;
         }
 
         .camera-video {
             background: #000;
-            aspect-ratio: 4/3;
             position: relative;
-            min-height: 300px;
+            flex: 1;
+            min-height: 0;
         }
 
         .camera-video img {
@@ -268,6 +311,9 @@
             height: 100%;
             object-fit: contain;
             display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
         }
 
         .loading {
@@ -331,11 +377,14 @@
                 grid-row: 2;
                 border-left: none;
                 border-bottom: 2px solid #3a3d4a;
-                max-height: 400px;
+                max-height: 300px;
+                flex-direction: row;
+                flex-wrap: wrap;
             }
 
-            .camera-grid {
-                grid-template-columns: 1fr;
+            .sidebar-panel {
+                flex: 1;
+                min-width: 200px;
             }
         }
     </style>
@@ -359,7 +408,7 @@
                 </div>
             </div>
 
-            <div class="camera-grid" id="cameraGrid">
+            <div class="camera-grid cameras-3" id="cameraGrid">
                 <!-- Camera cards will be loaded here -->
             </div>
         </div>
@@ -451,6 +500,9 @@
         function renderCameras() {
             const grid = document.getElementById('cameraGrid');
             grid.innerHTML = '';
+            
+            // Dynamically set grid class based on camera count
+            grid.className = `camera-grid cameras-${Math.min(cameras.length, 9)}`;
 
             cameras.forEach(camera => {
                 const card = document.createElement('div');
@@ -477,21 +529,14 @@
             camerasActive = !camerasActive;
             const btn = document.getElementById('toggleBtn');
 
-            console.log(`📹 Cameras ${camerasActive ? 'STARTED' : 'STOPPED'}`);
-            console.log(`🔍 Detection enabled: ${detectionEnabled}`);
-
             if (camerasActive) {
                 btn.textContent = '⏸️ Stop Camera(s)';
                 btn.classList.remove('btn-success');
                 btn.classList.add('btn-danger');
                 startAllCameras();
                 
-                // Start polling if detection is enabled
                 if (detectionEnabled) {
-                    console.log('✅ Both cameras and detection active - starting polling');
                     startStatsPolling();
-                } else {
-                    console.log('⚠️ Detection not enabled - polling will NOT start');
                 }
             } else {
                 btn.textContent = '▶️ Start Camera(s)';
@@ -549,19 +594,8 @@
                 <head>
                     <title>${camera.name} - Fullscreen</title>
                     <style>
-                        body {
-                            margin: 0;
-                            background: #000;
-                            display: flex;
-                            justify-content: center;
-                            align-items: center;
-                            height: 100vh;
-                        }
-                        img {
-                            max-width: 100%;
-                            max-height: 100%;
-                            object-fit: contain;
-                        }
+                        body { margin: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; }
+                        img { max-width: 100%; max-height: 100%; object-fit: contain; }
                     </style>
                 </head>
                 <body>
@@ -630,10 +664,6 @@
                 });
 
                 updateDetectionUI();
-
-                if (models.length === 0) {
-                    console.log('No YOLO models found in the "models" folder.');
-                }
             } catch (error) {
                 console.error('Error loading models:', error);
             }
@@ -660,7 +690,7 @@
                 }
             } catch (error) {
                 console.error('Error loading model:', error);
-                alert('Failed to load model. Check console for details.');
+                alert('Failed to load model.');
             }
         }
 
@@ -672,8 +702,6 @@
 
             try {
                 const newState = !detectionEnabled;
-                console.log(`🔍 Toggling detection to: ${newState}`);
-                
                 const response = await fetch(`${BACKEND_URL}/detection/toggle?enabled=${newState}`, {
                     method: 'POST'
                 });
@@ -681,18 +709,11 @@
 
                 if (data.success) {
                     detectionEnabled = newState;
-                    console.log(`✅ Detection is now: ${detectionEnabled ? 'ENABLED' : 'DISABLED'}`);
-                    console.log(`📹 Cameras active: ${camerasActive}`);
-                    
                     updateDetectionUI();
                     
-                    // Start or stop stats polling
                     if (detectionEnabled && camerasActive) {
-                        console.log('✅ Both detection and cameras active - starting polling');
                         startStatsPolling();
                     } else {
-                        console.log('⚠️ Requirements not met - stopping polling');
-                        console.log(`   Detection: ${detectionEnabled}, Cameras: ${camerasActive}`);
                         stopStatsPolling();
                     }
                 } else {
@@ -704,40 +725,30 @@
         }
 
         function startStatsPolling() {
-            // Poll every 500ms for responsive updates
-            if (statsInterval) {
-                clearInterval(statsInterval);
-            }
-            console.log('🟢 Starting stats polling...');
+            if (statsInterval) clearInterval(statsInterval);
             statsInterval = setInterval(updateStats, 500);
-            updateStats(); // Immediate first update
+            updateStats();
         }
 
         function stopStatsPolling() {
             if (statsInterval) {
                 clearInterval(statsInterval);
                 statsInterval = null;
-                console.log('🔴 Stopped stats polling');
             }
-            // Reset stats display
             updatePeopleCount(0);
             updateWeaponStatus(false);
             updateThreatLevel(0);
         }
 
         async function updateStats() {
-            console.log('📊 Fetching stats from backend...');
             try {
                 const response = await fetch(`${BACKEND_URL}/stats`);
                 const data = await response.json();
-                
-                console.log('📊 Stats received:', data);
-                
                 updatePeopleCount(data.people_count);
                 updateWeaponStatus(data.weapon_detected);
                 updateThreatLevel(data.threat_level);
             } catch (error) {
-                console.error('❌ Error fetching stats:', error);
+                console.error('Error fetching stats:', error);
             }
         }
 
@@ -747,7 +758,6 @@
 
             if (currentModel) {
                 toggleBtn.disabled = false;
-                
                 if (detectionEnabled) {
                     toggleBtn.textContent = 'Disable Detection';
                     toggleBtn.className = 'btn btn-danger';
@@ -768,19 +778,12 @@
             }
         }
 
-        function refreshModels() {
-            loadModels();
-        }
+        function refreshModels() { loadModels(); }
 
         function updateSystemStatus(status) {
-            const statusEl = document.getElementById('systemStatus');
-            if (status === 'ONLINE') {
-                statusEl.textContent = 'ONLINE';
-                statusEl.style.color = '#4ade80';
-            } else {
-                statusEl.textContent = 'OFFLINE';
-                statusEl.style.color = '#ef4444';
-            }
+            const el = document.getElementById('systemStatus');
+            el.textContent = status;
+            el.style.color = status === 'ONLINE' ? '#4ade80' : '#ef4444';
         }
 
         function updatePeopleCount(count) {
@@ -788,44 +791,35 @@
         }
 
         function updateWeaponStatus(detected) {
-            const statusEl = document.getElementById('weaponStatus');
-            
+            const el = document.getElementById('weaponStatus');
             if (detected) {
-                statusEl.className = 'detection-status inactive';
-                statusEl.style.borderColor = '#ef4444';
-                statusEl.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
-                statusEl.style.color = '#ef4444';
-                statusEl.innerHTML = '<span class="status-indicator"></span>⚠️ WEAPON DETECTED';
+                el.className = 'detection-status inactive';
+                el.style.borderColor = '#ef4444';
+                el.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
+                el.style.color = '#ef4444';
+                el.innerHTML = '<span class="status-indicator"></span>⚠️ WEAPON DETECTED';
             } else {
-                statusEl.className = 'detection-status active';
-                statusEl.style.borderColor = '';
-                statusEl.style.backgroundColor = '';
-                statusEl.style.color = '';
-                statusEl.innerHTML = '<span class="status-indicator"></span>No Weapon Detected';
+                el.className = 'detection-status active';
+                el.style.borderColor = '';
+                el.style.backgroundColor = '';
+                el.style.color = '';
+                el.innerHTML = '<span class="status-indicator"></span>No Weapon Detected';
             }
         }
 
         function updateThreatLevel(level) {
-            const threatNumber = document.getElementById('threatNumber');
-            const threatLabel = document.getElementById('threatLabel');
+            const num = document.getElementById('threatNumber');
+            const label = document.getElementById('threatLabel');
+            num.textContent = `${level}/10`;
             
-            threatNumber.textContent = `${level}/10`;
+            let color, text;
+            if (level <= 3) { color = '#4ade80'; text = 'LOW'; }
+            else if (level <= 6) { color = '#fbbf24'; text = 'MEDIUM'; }
+            else { color = '#ef4444'; text = 'HIGH'; }
             
-            let color, label;
-            if (level <= 3) {
-                color = '#4ade80';
-                label = 'LOW';
-            } else if (level <= 6) {
-                color = '#fbbf24';
-                label = 'MEDIUM';
-            } else {
-                color = '#ef4444';
-                label = 'HIGH';
-            }
-            
-            threatLabel.textContent = label;
-            threatLabel.style.color = color;
-            threatNumber.style.color = color;
+            label.textContent = text;
+            label.style.color = color;
+            num.style.color = color;
         }
     </script>
 </body>
