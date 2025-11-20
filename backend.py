@@ -178,7 +178,7 @@ def generate_mjpeg_stream(camera_id: int):
                                         cv2.rectangle(frame, (x1, y1 - label_size[1] - 10), 
                                                     (x1 + label_size[0], y1), (0, 255, 0), -1)
                                         cv2.putText(frame, label, (x1, y1 - 5), 
-                                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+                                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
                                     
                                     elif class_id == 43:
                                         frame_weapon_detected = True
