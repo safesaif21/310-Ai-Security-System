@@ -1,6 +1,6 @@
 """
 FastAPI Backend for USB Camera Streaming with YOLO Detection
-Run with: uvicorn backend:app --reload
+Run with: $env:CAM_COUNT=<number_of_cameras>; uvicorn backend:app --reload
 """
 
 from fastapi import FastAPI
@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 from ultralytics import YOLO
 import uvicorn
+import os
 
 app = FastAPI()
 
@@ -23,6 +24,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+num_of_cameras = 1  # default
+
+num_of_cameras = int(os.getenv("CAM_COUNT", "1"))
+print(f"[BOOT] num_of_cameras = {num_of_cameras}")
 
 # Store camera objects
 cameras = {}
@@ -251,7 +257,7 @@ async def list_cameras():
     available = []
     
     # Check cameras 0-2 with longer timeout for slow cameras
-    for i in range(3):
+    for i in range(num_of_cameras):
         try:
             cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
             # Increase timeout for slow cameras (like your 3rd one)

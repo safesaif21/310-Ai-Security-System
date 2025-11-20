@@ -435,14 +435,6 @@
                 const data = await response.json();
                 cameras = data.cameras;
                 
-                if (!cameras.find(c => c.id === 2)) {
-                    cameras.push({
-                        id: 2,
-                        name: 'Camera 2',
-                        url: `${BACKEND_URL}/camera/2`
-                    });
-                }
-                
                 document.getElementById('cameraCount').textContent = 
                     `${cameras.length} camera(s) detected`;
                 
