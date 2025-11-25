@@ -524,26 +524,67 @@
         }
 
         function toggleAllCameras() {
-            camerasActive = !camerasActive;
-            const btn = document.getElementById('toggleBtn');
+    camerasActive = !camerasActive;
+    const btn = document.getElementById('toggleBtn');
 
-            if (camerasActive) {
-                btn.textContent = '⏸️ Stop Camera(s)';
-                btn.classList.remove('btn-success');
-                btn.classList.add('btn-danger');
-                startAllCameras();
-                
-                if (detectionEnabled) {
-                    startStatsPolling();
-                }
-            } else {
-                btn.textContent = '▶️ Start Camera(s)';
-                btn.classList.remove('btn-danger');
-                btn.classList.add('btn-success');
-                stopAllCameras();
-                stopStatsPolling();
+    if (camerasActive) {
+        btn.textContent = '⏸️ Stop Camera(s)';
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-danger');
+        startAllCameras();
+        
+        // Always start stats polling when cameras are active
+        startStatsPolling();
+    } else {
+        btn.textContent = '▶️ Start Camera(s)';
+        btn.classList.remove('btn-danger');
+        btn.classList.add('btn-success');
+        stopAllCameras();
+        stopStatsPolling();
+    }
+}
+
+async function toggleDetection() {
+    if (!currentModel) {
+        alert('Please select and load a model first!');
+        return;
+    }
+
+    try {
+        const newState = !detectionEnabled;
+        const response = await fetch(`${BACKEND_URL}/detection/toggle?enabled=${newState}`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            detectionEnabled = newState;
+            updateDetectionUI();
+            
+            // Start stats polling if cameras are active
+            if (detectionEnabled && camerasActive) {
+                startStatsPolling();
+            } else if (!detectionEnabled) {
+                // Reset stats display when detection is disabled
+                updatePeopleCount(0);
+                updateWeaponStatus(false);
+                updateThreatLevel(0);
             }
+        } else {
+            alert(`Error: ${data.message}`);
         }
+    } catch (error) {
+        console.error('Error toggling detection:', error);
+    }
+}
+
+function startStatsPolling() {
+    if (statsInterval) clearInterval(statsInterval);
+    // Poll every 500ms for real-time updates
+    statsInterval = setInterval(updateStats, 500);
+    // Call immediately to get initial stats
+    updateStats();
+}
 
         function startAllCameras() {
             cameras.forEach(camera => {
