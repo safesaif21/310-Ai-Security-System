@@ -110,12 +110,11 @@ def step6(data_yaml_path, model_name):
 
 if __name__ == "__main__":
     # === Normal full pipeline ===
-    # step1() # convert images to jpeg and resize
-    # step2() # split dataset
-    # step3()  # will wait for user to copy labels
-    # step4(os.path.dirname(input_folder)) # verify dataset and update class numbers
-    # step5() # generate data.yaml
-
+    step1() # convert images to jpeg and resize
+    step2() # split dataset
+    step3()  # will wait for user to copy labels
+    step4(os.path.dirname(input_folder)) # verify dataset and update class numbers
+    step5() # generate data.yaml
     data_yaml_path = os.path.join(os.path.dirname(input_folder), "data.yaml")
     step6(data_yaml_path, name) # train YOLO model
     print("🏁 Full YOLO data preprocessing pipeline completed successfully!")
