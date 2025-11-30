@@ -1,6 +1,0 @@
-names:
-  0: person
-  1: sus person
-nc: 2
-train: /Users/nazaninpm/Documents/GitHub/310-Ai-Security-System/data/images/split/train
-val: /Users/nazaninpm/Documents/GitHub/310-Ai-Security-System/data/images/split/val
