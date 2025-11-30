@@ -104,7 +104,7 @@ The system calculates threat levels based on:
 
 ## 🎓 Pipeline Diagram
 
-![Pipeline Diagram](diagrams\pipeline.png)
+![Pipeline Diagram](diagrams/pipeline.png)
 
 
 # 🎯 YOLOv8 Training Guide - AI Security System
