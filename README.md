@@ -9,7 +9,7 @@ An AI-powered security dashboard with real-time threat detection, weapon identif
 
 ---
 
-# 🚀 Project Setup Guide
+# Project Setup Guide
 
 ## 1. Create a Virtual Environment
 
@@ -273,7 +273,7 @@ This project is licensed under the MIT License.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **Ultralytics YOLOv8** - State-of-the-art object detection
 - **COCO Dataset** - Large image collection dataset
