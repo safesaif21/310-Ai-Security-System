@@ -13,6 +13,8 @@ import platform
 from pathlib import Path
 from ultralytics import YOLO
 import uvicorn
+from datetime import datetime
+import os
 
 app = FastAPI()
 
@@ -46,6 +48,16 @@ current_model = None
 model_lock = threading.Lock()
 detection_enabled = False
 MODELS_FOLDER = "yolo_models"
+
+# Recording management
+RECORDINGS_FOLDER = "recordings"
+recording_enabled = False
+video_writers = {}
+recording_lock = threading.Lock()
+
+# Ensure recordings directory exists
+if not os.path.exists(RECORDINGS_FOLDER):
+    os.makedirs(RECORDINGS_FOLDER)
 
 def get_camera(camera_id: int):
     """Get or create camera capture object"""
@@ -117,13 +129,43 @@ def generate_mjpeg_stream(camera_id: int):
             
             if not success:
                 print(f"⚠️  Failed to read frame from camera {camera_id}")
-                time.sleep(0.1)
+                # Try to reopen camera if it was disconnected
+                cap.release()
+                if camera_id in cameras:
+                    del cameras[camera_id]
+                time.sleep(0.5)
+                # Try to get camera again
+                cap, lock = get_camera(camera_id)
+                if cap is None:
+                    print(f"❌ Camera {camera_id} disconnected")
+                    break
                 continue
             
             frame_count += 1
             if frame_count % 100 == 0:
                 print(f"📊 Camera {camera_id}: {frame_count} frames streamed")
             
+            # Recording logic
+            if recording_enabled:
+                with recording_lock:
+                    if camera_id not in video_writers:
+                        # Initialize writer for this camera
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        filename = f"{RECORDINGS_FOLDER}/camera_{camera_id}_{timestamp}.mp4"
+                        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                        writer = cv2.VideoWriter(filename, fourcc, 20.0, (640, 480))
+                        video_writers[camera_id] = writer
+                        print(f"🔴 Started recording camera {camera_id} to {filename}")
+                    
+                    if camera_id in video_writers:
+                        video_writers[camera_id].write(frame)
+            elif camera_id in video_writers:
+                # Stop recording for this camera
+                with recording_lock:
+                    video_writers[camera_id].release()
+                    del video_writers[camera_id]
+                    print(f"⏹️ Stopped recording camera {camera_id}")
+
             # Reset detection counters
             frame_people_count = 0
             frame_weapon_detected = False
@@ -241,7 +283,9 @@ async def root():
             "camera_list": "/cameras",
             "camera_info": "/camera/{camera_id}/info",
             "stats": "/stats",
-            "models": "/models"
+            "models": "/models",
+            "recording_toggle": "/recording/toggle",
+            "recording_status": "/recording/status"
         }
     }
 
@@ -256,11 +300,12 @@ async def video_feed(camera_id: int):
 
 @app.get("/cameras")
 async def list_cameras():
-    """List available cameras"""
+    """List available cameras - dynamically detect up to 10"""
     print("🔍 Scanning for cameras...")
     available = []
     
-    for i in range(3):
+    # Scan up to 10 camera indices
+    for i in range(10):
         try:
             print(f"  Testing camera {i}...")
             
@@ -271,9 +316,11 @@ async def list_cameras():
             else:
                 cap = cv2.VideoCapture(i)
             
-            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 3000)
+            # Set shorter timeout for faster detection
+            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 2000)
             
             if cap.isOpened():
+                # Try to read a frame to verify camera is actually working
                 ret, frame = cap.read()
                 if ret and frame is not None:
                     available.append({
@@ -283,14 +330,14 @@ async def list_cameras():
                     })
                     print(f"  ✅ Camera {i} available")
                 else:
-                    print(f"  ❌ Camera {i} opened but can't read frames")
+                    print(f"  ⚠️  Camera {i} opened but can't read frames")
             else:
                 print(f"  ❌ Camera {i} not accessible")
             
             cap.release()
             
         except Exception as e:
-            print(f"  ❌ Error checking camera {i}: {e}")
+            print(f"  ⚠️  Error checking camera {i}: {e}")
             continue
     
     print(f"✅ Found {len(available)} camera(s)")
@@ -394,6 +441,36 @@ async def toggle_detection(enabled: bool):
         "detection_enabled": detection_enabled
     }
 
+@app.post("/recording/toggle")
+async def toggle_recording(enabled: bool):
+    """Enable or disable recording"""
+    global recording_enabled
+    
+    recording_enabled = enabled
+    status = "started" if enabled else "stopped"
+    print(f"🎥 Recording {status}")
+    
+    if not enabled:
+        # Stop all writers immediately
+        with recording_lock:
+            for writer in video_writers.values():
+                writer.release()
+            video_writers.clear()
+    
+    return {
+        "success": True,
+        "message": f"Recording {status}",
+        "recording_enabled": recording_enabled
+    }
+
+@app.get("/recording/status")
+async def get_recording_status():
+    """Get current recording status"""
+    return {
+        "recording_enabled": recording_enabled,
+        "active_recordings": len(video_writers)
+    }
+
 @app.get("/stats")
 async def get_stats():
     """Get current detection statistics"""
@@ -414,7 +491,12 @@ async def shutdown_event():
     """Release all cameras on shutdown"""
     for cap in cameras.values():
         cap.release()
-    print("🛑 All cameras released")
+    
+    # Release all video writers
+    for writer in video_writers.values():
+        writer.release()
+        
+    print("🛑 All cameras and recordings released")
 
 if __name__ == "__main__":
     print("🚀 Starting Camera Server...")

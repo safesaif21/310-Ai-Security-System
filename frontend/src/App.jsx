@@ -17,6 +17,7 @@ function App() {
   });
   const [camerasActive, setCamerasActive] = useState(false);
   const [systemStatus, setSystemStatus] = useState('OFFLINE');
+  const [recordingEnabled, setRecordingEnabled] = useState(false);
 
   const BACKEND_URL = 'http://localhost:8000';
 
@@ -92,6 +93,8 @@ function App() {
           camerasActive={camerasActive}
           setCamerasActive={setCamerasActive}
           detectionEnabled={detectionEnabled}
+          recordingEnabled={recordingEnabled}
+          setRecordingEnabled={setRecordingEnabled}
         />
         <CameraGrid
           cameras={cameras}
