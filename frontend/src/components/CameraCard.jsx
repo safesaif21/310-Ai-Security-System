@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Maximize, Video, VideoOff } from 'lucide-react';
+import { Maximize, Video, VideoOff, MoreHorizontal } from 'lucide-react';
+import CameraSettings from './CameraSettings';
 
 const CameraCard = ({ camera, active }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
 
     const handleLoad = () => {
         setLoading(false);
@@ -43,7 +45,8 @@ const CameraCard = ({ camera, active }) => {
             height: '100%',
             border: '2px solid var(--border)',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            cursor: 'pointer'
+            position: 'relative',
+            overflow: 'hidden'
         }}
             onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.5)';
@@ -69,32 +72,59 @@ const CameraCard = ({ camera, active }) => {
                     <Video size={16} color={active ? 'var(--success)' : 'var(--text-muted)'} />
                     <span style={{ fontWeight: '500' }}>{camera.name}</span>
                 </div>
-                <button
-                    onClick={openFullscreen}
-                    style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer',
-                        padding: '4px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '0.75rem',
-                        transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                        e.target.style.color = 'var(--primary)';
-                        e.target.style.transform = 'scale(1.05)';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.target.style.color = 'var(--text-muted)';
-                        e.target.style.transform = 'scale(1)';
-                    }}
-                >
-                    <Maximize size={14} />
-                    Fullscreen
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                        onClick={() => setShowSettings(true)}
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s'
+                        }}
+                        title="Settings"
+                        onMouseEnter={(e) => {
+                            e.target.style.color = 'var(--primary)';
+                            e.target.style.transform = 'scale(1.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.target.style.color = 'var(--text-muted)';
+                            e.target.style.transform = 'scale(1)';
+                        }}
+                    >
+                        <MoreHorizontal size={16} />
+                    </button>
+                    <button
+                        onClick={openFullscreen}
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '0.75rem',
+                            transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.target.style.color = 'var(--primary)';
+                            e.target.style.transform = 'scale(1.05)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.target.style.color = 'var(--text-muted)';
+                            e.target.style.transform = 'scale(1)';
+                        }}
+                    >
+                        <Maximize size={14} />
+                        Fullscreen
+                    </button>
+                </div>
             </div>
 
             <div style={{
@@ -159,6 +189,13 @@ const CameraCard = ({ camera, active }) => {
                     <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
                         Feed Paused
                     </div>
+                )}
+
+                {showSettings && (
+                    <CameraSettings
+                        camera={camera}
+                        onClose={() => setShowSettings(false)}
+                    />
                 )}
             </div>
             <style>{`

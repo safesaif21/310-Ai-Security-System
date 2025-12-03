@@ -18,6 +18,7 @@ function App() {
   const [camerasActive, setCamerasActive] = useState(false);
   const [systemStatus, setSystemStatus] = useState('OFFLINE');
   const [recordingEnabled, setRecordingEnabled] = useState(false);
+  const [logs, setLogs] = useState([]);
 
   const BACKEND_URL = 'http://localhost:8000';
 
@@ -77,9 +78,45 @@ function App() {
     };
   }, [detectionEnabled, camerasActive]);
 
+  // Poll for logs
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        const response = await fetch(`${BACKEND_URL}/logs`);
+        const data = await response.json();
+        setLogs(data.logs);
+      } catch (error) {
+        console.error('Error fetching logs:', error);
+      }
+    };
+
+    // Initial fetch
+    fetchLogs();
+
+    // Poll every 2 seconds
+    const interval = setInterval(fetchLogs, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Monitor system status
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        await fetch(`${BACKEND_URL}/`);
+        setSystemStatus('ONLINE');
+      } catch (error) {
+        setSystemStatus('OFFLINE');
+      }
+    };
+
+    const interval = setInterval(checkStatus, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="app-container">
-      <Header cameraCount={cameras.length} />
+      <Header cameraCount={cameras.length} systemStatus={systemStatus} />
 
       <main className="main-content" style={{
         padding: '1.5rem',
@@ -95,6 +132,7 @@ function App() {
           detectionEnabled={detectionEnabled}
           recordingEnabled={recordingEnabled}
           setRecordingEnabled={setRecordingEnabled}
+          logs={logs}
         />
         <CameraGrid
           cameras={cameras}

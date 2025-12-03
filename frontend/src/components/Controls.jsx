@@ -1,7 +1,8 @@
 import React from 'react';
 import { Play, Square, Video, VideoOff } from 'lucide-react';
+import LogsDropdown from './LogsDropdown';
 
-const Controls = ({ camerasActive, setCamerasActive, detectionEnabled, recordingEnabled, setRecordingEnabled }) => {
+const Controls = ({ camerasActive, setCamerasActive, detectionEnabled, recordingEnabled, setRecordingEnabled, logs }) => {
     const toggleCameras = () => {
         setCamerasActive(!camerasActive);
     };
@@ -26,7 +27,8 @@ const Controls = ({ camerasActive, setCamerasActive, detectionEnabled, recording
             gridColumn: '1 / -1',
             display: 'flex',
             gap: '1rem',
-            marginBottom: '1rem'
+            marginBottom: '1rem',
+            alignItems: 'center'
         }}>
             <button
                 className={`btn ${camerasActive ? 'btn-danger' : 'btn-success'}`}
@@ -46,6 +48,10 @@ const Controls = ({ camerasActive, setCamerasActive, detectionEnabled, recording
                 {recordingEnabled ? <VideoOff size={20} /> : <Video size={20} />}
                 {recordingEnabled ? 'Stop Recording' : 'Start Recording'}
             </button>
+
+            <div style={{ marginLeft: 'auto' }}>
+                <LogsDropdown logs={logs} />
+            </div>
         </div>
     );
 };

@@ -1,7 +1,9 @@
 import React from 'react';
 import { Shield, Radio } from 'lucide-react';
 
-const Header = ({ cameraCount }) => {
+const Header = ({ cameraCount, systemStatus }) => {
+    const isOnline = systemStatus === 'ONLINE';
+
     return (
         <header style={{
             gridColumn: '1 / -1',
@@ -32,7 +34,7 @@ const Header = ({ cameraCount }) => {
                         color: 'var(--text-main)',
                         letterSpacing: '-0.025em'
                     }}>
-                        AI Security System
+                        Safe Security System
                     </h1>
                     <div style={{
                         fontSize: '0.75rem',
@@ -50,16 +52,18 @@ const Header = ({ cameraCount }) => {
             <div style={{ display: 'flex', gap: '1rem' }}>
                 <div style={{
                     padding: '0.5rem 1rem',
-                    background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.05) 100%)',
-                    color: 'var(--success)',
+                    background: isOnline
+                        ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.05) 100%)'
+                        : 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%)',
+                    color: isOnline ? 'var(--success)' : 'var(--danger)',
                     borderRadius: '2rem',
                     fontSize: '0.75rem',
                     fontWeight: '600',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    border: '1px solid rgba(16, 185, 129, 0.3)',
-                    boxShadow: '0 0 15px rgba(16, 185, 129, 0.2)'
+                    border: `1px solid ${isOnline ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                    boxShadow: `0 0 15px ${isOnline ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
                 }}>
                     <div style={{
                         width: '6px',
@@ -68,7 +72,7 @@ const Header = ({ cameraCount }) => {
                         background: 'currentColor',
                         boxShadow: '0 0 8px currentColor'
                     }} />
-                    SYSTEM ONLINE
+                    {isOnline ? 'SYSTEM ONLINE' : 'SYSTEM OFFLINE'}
                 </div>
             </div>
         </header>

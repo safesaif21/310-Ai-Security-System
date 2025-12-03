@@ -217,28 +217,6 @@ const Sidebar = ({
                                     <div style={{ fontSize: '1.5rem', fontWeight: '700' }}>{stats.people_count}</div>
                                 </div>
                             </div>
-
-                            <div style={{
-                                background: 'var(--bg-dark)',
-                                padding: '1rem',
-                                borderRadius: '0.5rem',
-                                border: '1px solid var(--border)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '1rem'
-                            }}>
-                                <RefreshCw size={24} color="var(--text-muted)" />
-                                <div>
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>System Status</div>
-                                    <div style={{
-                                        fontSize: '1rem',
-                                        fontWeight: '600',
-                                        color: systemStatus === 'ONLINE' ? 'var(--success)' : 'var(--danger)'
-                                    }}>
-                                        {systemStatus}
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     </div>
 
