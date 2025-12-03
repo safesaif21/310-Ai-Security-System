@@ -92,7 +92,7 @@ The frontend will start on `http://localhost:5173` (or another port if 5173 is b
 
 ---
 
-## 📊 Threat Calculation
+## Threat Calculation
 
 The system calculates threat levels based on:
 
@@ -106,7 +106,7 @@ The system calculates threat levels based on:
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 310-AI-Security-System/
@@ -178,7 +178,7 @@ The system calculates threat levels based on:
 
 ---
 
-## 🎥 Recordings & Logging System
+## Recordings & Logging System
 
 ### Recording Management
 
@@ -255,19 +255,19 @@ Example:
 
 ---
 
-## 🎓 System Pipeline Diagram
+## System Pipeline Diagram
 
 ![Pipeline Diagram](diagrams/pipeline.png)
 
 ---
 
-## 🎯 YOLOv8 Training Guide
+## YOLOv8 Training Guide
 
 Quick guide to train our custom YOLOv8 model to detect any class you want in our security system can be found [here](https://youtu.be/z9F9Hssbi-4).
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License.
 
