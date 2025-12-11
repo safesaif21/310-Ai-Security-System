@@ -1,9 +1,70 @@
-.venv
-/images
-.DS_Store
-data/images/
-data/labels/
-data/converted_images
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Recordings & Logs
 recordings/
 master/
 logs/
+*.mp4
+*.avi
+*.mov
+
+# YOLO Models (large files - use Git LFS if needed)
+# yolo_models/*.pt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Monitoring
+prometheus_data/
+grafana_data/
+
+# Docker
+docker-compose.override.yml
+
+# Yolo training files
+images/

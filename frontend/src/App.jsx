@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import Login from './components/Login';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import CameraGrid from './components/CameraGrid';
 import Controls from './components/Controls';
 import './index.css';
 
-function App() {
+function Dashboard() {
+  const { user, logout } = useAuth();
   const [cameras, setCameras] = useState([]);
   const [models, setModels] = useState([]);
   const [currentModel, setCurrentModel] = useState(null);
@@ -116,7 +119,12 @@ function App() {
 
   return (
     <div className="app-container">
-      <Header cameraCount={cameras.length} systemStatus={systemStatus} />
+      <Header
+        cameraCount={cameras.length}
+        systemStatus={systemStatus}
+        user={user}
+        onLogout={logout}
+      />
 
       <main className="main-content" style={{
         padding: '1.5rem',
@@ -150,6 +158,35 @@ function App() {
         systemStatus={systemStatus}
       />
     </div>
+  );
+}
+
+function AppContent() {
+  const { isAuthenticated, loading, user } = useAuth();
+
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#0a0b0f'
+      }}>
+        <div style={{ color: 'white', fontSize: '1.25rem' }}>Loading...</div>
+      </div>
+    );
+  }
+
+  // Add key to force remount on login/logout - fixes camera state issues
+  return isAuthenticated ? <Dashboard key={user?.id || 'dashboard'} /> : <Login />;
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

@@ -13,21 +13,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from ultralytics import YOLO
 
-from backend.config import *
+from backend.config import settings
 from backend.models.schemas import CameraSettings
 from backend.managers.log_manager import LogManager
 from backend.managers.camera_manager import CameraManager
 from backend.managers.recording_manager import RecordingManager
 from backend.managers.master_recorder import MasterRecorder
 from backend.utils.video_utils import draw_timestamp
+from backend.database.mongodb import get_database, close_mongo_connection
+from backend.routers import auth, health
 
 logger = logging.getLogger(__name__)
 
 # Initialize managers
-log_manager = LogManager(LOGS_FOLDER)
+log_manager = LogManager(settings.logs_folder)
 camera_manager = CameraManager(log_manager)
-recording_manager = RecordingManager(log_manager, RECORDINGS_FOLDER, RECORDING_SIZE_LIMIT_GB)
-master_recorder = MasterRecorder(log_manager, MASTER_FOLDER, MASTER_SIZE_LIMIT_GB)
+recording_manager = RecordingManager(log_manager, settings.recordings_folder, settings.recording_size_limit_gb)
+master_recorder = MasterRecorder(log_manager, settings.master_folder, settings.master_size_limit_gb)
 
 # Track latest frames for master recording
 latest_frames: Dict[int, np.ndarray] = {}
@@ -40,15 +42,24 @@ detection_enabled = False
 recording_enabled = False
 
 # Initialize FastAPI app
-app = FastAPI()
+app = FastAPI(
+    title=settings.app_name,
+    version=settings.app_version,
+    description="AI-powered security system with real-time threat detection",
+)
 
+# CORS configuration from settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include API routers
+app.include_router(auth.router)
+app.include_router(health.router)
 
 def generate_mjpeg_stream(camera_id: int):
     """Generate MJPEG stream for a camera"""
@@ -82,7 +93,7 @@ def generate_mjpeg_stream(camera_id: int):
             
             if not success:
                 consecutive_failures += 1
-                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                if consecutive_failures > settings.max_consecutive_failures:
                     log_manager.add_log(f"Camera {camera_id} appears frozen, releasing", "error")
                     camera_manager.release_camera(camera_id)
                     break
@@ -130,7 +141,7 @@ def generate_mjpeg_stream(camera_id: int):
             elif camera_id in recording_manager.writers:
                 recording_manager.stop_recording(camera_id)
             
-            ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
+            ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, settings.jpeg_quality])
             if ret:
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
@@ -180,13 +191,16 @@ async def video_feed(camera_id: int):
 @app.get("/cameras")
 async def list_cameras():
     available = []
-    for i in range(MAX_CAMERAS):
+    for i in range(settings.max_cameras):
         try:
             if camera_manager.is_windows:
                 cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
             else:
                 cap = cv2.VideoCapture(i)
-            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 1000)
+            
+            # Shorter timeout to reduce delay
+            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 500)
+            
             if cap.isOpened():
                 ret, _ = cap.read()
                 if ret:
@@ -197,12 +211,13 @@ async def list_cameras():
                     })
             cap.release()
         except Exception:
+            # Silently skip cameras that can't be accessed
             continue
     return {"cameras": available}
 
 @app.get("/models")
 async def list_models():
-    models_dir = Path(MODELS_FOLDER)
+    models_dir = Path(settings.models_folder)
     if not models_dir.exists():
         return {"models": []}
     
@@ -223,7 +238,7 @@ async def list_models():
 @app.post("/model/load")
 async def load_model(model_name: str):
     global current_model, detection_enabled
-    model_path = Path(MODELS_FOLDER) / model_name
+    model_path = Path(settings.models_folder) / model_name
     
     if not model_path.exists():
         return {"success": False}
@@ -291,10 +306,31 @@ async def get_stats():
 async def get_logs():
     return {"logs": log_manager.get_logs()}
 
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database on application startup"""
+    logger.info("🚀 Starting AI Security System...")
+    logger.info(f"Environment: {settings.environment}")
+    logger.info(f"MongoDB URI: {settings.mongodb_uri}")
+    logger.info(f"Database: {settings.mongodb_database}")
+    
+    # Initialize MongoDB connection and collections
+    try:
+        db = get_database()
+        logger.info(f"✅ Connected to MongoDB: {db.name}")
+        logger.info(f"   Collections: {', '.join(db.list_collection_names())}")
+    except Exception as e:
+        logger.error(f"❌ MongoDB connection failed: {e}")
+        logger.error("   Make sure MongoDB is running!")
+    
+    log_manager.add_log("System started", "info")
+
+
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Shutting down...")
     recording_manager.stop_all()
     master_recorder.stop_recording()
     camera_manager.release_all()
+    close_mongo_connection()
     log_manager.add_log("System shutdown", "info")
