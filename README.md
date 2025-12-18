@@ -106,48 +106,72 @@ The system calculates threat levels based on:
 
 ---
 
+## ⚡ Recent Optimizations & Features
+
+### 🚀 Instant Backend Startup
+- **Skip Scanning**: Bypass the slow camera auto-detection phase.
+- **Configuration**: Add `FIXED_CAMERA_COUNT=1` to your `.env` file to jump straight to active feeds.
+
+### 🛡️ Robust Auto-Recovery
+- **Self-Healing**: The backend automatically monitors camera health.
+- **Reconnection**: If a camera cable is bumped or a signal is lost, the system will **automatically attempt to restart the connection** after a short delay without requiring a full restart.
+
+### 🧠 Intelligent Detection Logic
+- **Hysteresis (Persistence)**: AI must see an object for several consecutive frames (10 for people, 5 for weapons) to filter out flickering/glitches.
+- **Logging Cooldown**: Prevents log spam by limiting alerts to once every 30-60 seconds for stable objects.
+
+### 📼 Recording & Performance
+- **360p Optimization**: Records at **640x360 (nHD)** to drastically reduce file sizes (5-10MB/min) while maintaining high clarity for security review.
+- **Dynamic FPS**: Automatically detects and matches the camera's native frame rate for perfect synchronization.
+- **Browser Playback**: Uses stabilized **H.264 (avc1)** encoding for instant playback in modern web browsers without external codecs.
+
+### 📱 Improved for Mobile
+- **Responsive Navigation**: Automatically pivots from a multi-column desktop grid to a single-column layout on smartphones.
+- **Safe Area Awareness**: Fully supports notched screens and home indicators for a seamless edge-to-edge experience.
+- **UI Compactness**: Navigation and headers shrink on mobile to maximize screen space for camera feeds.
+
+---
+
 ## Project Structure
 
 ```
 310-AI-Security-System/
 ├── backend/
 │   ├── __init__.py                 # Package initialization
-│   ├── app.py                      # FastAPI WebSocket server
-│   ├── main.py                     # Application entry point
-│   ├── config.py                   # Configuration constants
+│   ├── app.py                      # Main loop, video capture & recovery logic
+│   ├── main.py                     # Entry point (Uvicorn)
+│   ├── config.py                   # Pydantic-based configuration management
 │   │
 │   ├── managers/
-│   │   ├── camera_manager.py       # Camera lifecycle management
-│   │   ├── recording_manager.py    # Per-camera recording with rotation
-│   │   ├── master_recorder.py      # 2x2 grid master recordings
-│   │   └── log_manager.py          # Event logging system
+│   │   ├── camera_manager.py       # Detection stats & startup logic
+│   │   ├── recording_manager.py    # Multi-camera segmenting & storage rotation
+│   │   ├── master_recorder.py      # Composite 2x2 grid recording
+│   │   └── log_manager.py          # Centralized event logging (UTF-8)
 │   │
-│   ├── models/
-│   │   └── # Data models and schemas
+│   ├── routers/
+│   │   ├── logs.py                 # Date-based log retrieval API
+│   │   └── recordings.py           # Stream-optimized video delivery
 │   │
 │   └── utils/
-│       └── video_utils.py          # Video processing utilities
+│       └── video_utils.py          # Frame drawing & overlay utilities
 │
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── CameraCard.jsx      # Individual camera display
-│   │   │   ├── CameraGrid.jsx      # Grid layout for cameras
-│   │   │   ├── CameraSettings.jsx  # Camera configuration UI
-│   │   │   ├── Controls.jsx        # Recording/detection controls
-│   │   │   ├── Header.jsx          # Application header
-│   │   │   ├── LogsDropdown.jsx    # Event logs viewer
-│   │   │   └── Sidebar.jsx         # Settings sidebar
+│   │   │   ├── CameraCard.jsx      # Feed display with fullscreen support
+│   │   │   ├── CameraGrid.jsx      # Adaptive layout engine
+│   │   │   ├── Header.jsx          # Mobile-aware dashboard header
+│   │   │   ├── Navigation.jsx      # Responsive view switcher
+│   │   │   ├── RecordingsView.jsx  # Video browser with desktop/mobile stacking
+│   │   │   ├── LogsView.jsx        # Colored console with viewport fixes
+│   │   │   └── Sidebar.jsx         # Controls, threat level, and statistics
 │   │   │
-│   │   ├── App.jsx                 # Main application component
-│   │   ├── App.css                 # Application styles
-│   │   ├── index.css               # Global styles
-│   │   └── main.jsx                # React entry point
+│   │   ├── App.jsx                 # Global state & window resize management
+│   │   ├── index.css               # Premium dark-mode glassmorphism styles
+│   │   └── main.jsx                # React root
 │   │
-│   ├── public/                     # Static assets
-│   ├── index.html                  # HTML template
-│   ├── package.json                # Node.js dependencies
-│   └── vite.config.js              # Vite configuration
+│   ├── index.html                  # Viewport-fit cover support
+│   └── vite.config.js              # Build & Dev configuration
 │
 ├── recordings/
 │   ├── camera_0/                   # Camera 0 recordings
@@ -182,27 +206,20 @@ The system calculates threat levels based on:
 
 ### Recording Management
 
-The system features an intelligent recording system with automatic rotation and storage management:
+The system features an intelligent recording system with automatic rotation:
 
-#### **Per-Camera Recordings**
-- **Location**: `recordings/camera_X/` (where X is the camera index)
-- **Duration**: Videos are saved in 1-minute intervals
-- **Format**: MP4 with H.264 codec
-- **Naming**: `YYYY-MM-DD_HH-MM-SS.mp4`
+#### **Per-Camera Recordings (Optimized)**
+- **Location**: `recordings/camera_X/`
+- **Resolution**: **360p (nHD)** - Optimized for tiny file sizes (approx. 5-10MB / min) while preserving clarity.
+- **Format**: MP4 with **H.264 (avc1/H264)** codec.
 - **Features**:
-  - Detection bounding boxes visible in recordings
-  - Partial recordings saved if system stops abruptly
-  - Automatic cleanup when folder exceeds 1GB (oldest files deleted first)
+  - Automatic frame downscaling.
+  - Storage management (1GB per camera limit).
 
 #### **Master Recordings**
 - **Location**: `master/`
-- **Layout**: 2x2 grid showing up to 4 cameras simultaneously
-- **Overlays**: 
-  - Current YOLO model name
-  - People count per camera
-  - Detection bounding boxes
-- **Storage**: 1GB limit with automatic rotation
-- **Duration**: 1-minute intervals
+- **Layout**: 2x2 grid showing up to 4 cameras simultaneously.
+- **Overlays**: Active YOLO model, people counts, and threat level.
 
 #### **Configuration**
 
@@ -222,7 +239,7 @@ RECORDING_ROTATION_SECONDS = 60  # 1 minute per file
 
 ### Event Logging
 
-The system maintains comprehensive event logs for all security events:
+The system maintains comprehensive event logs with improved readability:
 
 #### **Log Location**
 - **Directory**: `logs/`
@@ -234,12 +251,13 @@ The system maintains comprehensive event logs for all security events:
 - **Camera Events**: Camera additions, removals, and failures
 - **System Events**: Application start/stop
 
-#### **Log Format**
-Each log entry includes:
-- Timestamp (HH:MM:SS)
-- Event type (INFO, WARNING, ERROR)
-- Camera identifier
-- Event description
+#### **Log Formats**
+- **Daily Files**: `logs/YYYY-MM-DD.txt` (UTF-8 encoding).
+- **Frontend View**: Colored codes for faster scanning:
+  - `[ERROR]` - Red (Critical alerts)
+  - `[WARNING]` - Orange (System warnings/Weapons)
+  - `[SUCCESS]` - Green (Connections/Status)
+  - `[DETECTION]` - Blue (Object events)
 
 Example:
 ```
