@@ -65,7 +65,8 @@ class MasterRecorder:
             timestamp = datetime.now().strftime("%Y%m%d_%H_%M_%S")
             filename = self.base_folder / f"master_{timestamp}.mp4"
             
-            fourcc = cv2.VideoWriter_fourcc(*'avc1')
+            # Use 'H264' (Intel/Microsoft) instead of 'avc1' (OpenH264) for better Windows compatibility
+            fourcc = cv2.VideoWriter_fourcc(*'H264')
             writer = cv2.VideoWriter(str(filename), fourcc, 20.0, (self.grid_width, self.grid_height))
             
             if not writer.isOpened():

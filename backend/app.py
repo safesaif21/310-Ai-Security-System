@@ -337,7 +337,10 @@ async def toggle_recording(enabled: bool):
                  cap = camera_manager.cameras[cid]
                  w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                  h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                 recording_manager.start_recording(cid, w, h)
+                 fps = cap.get(cv2.CAP_PROP_FPS)
+                 if fps <= 0 or fps > 60: fps = 30.0 # Fallback
+                 
+                 recording_manager.start_recording(cid, w, h, fps)
         
         master_recorder.start_recording()
     else:
@@ -433,8 +436,11 @@ async def startup_event():
             if cap is not None and cap.isOpened():
                 w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                 h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                recording_manager.start_recording(cam_id, w, h)
-                logger.info(f"✅ Recording started for Camera {cam_id} ({w}x{h})")
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                if fps <= 0 or fps > 60: fps = 30.0 # Fallback
+                
+                recording_manager.start_recording(cam_id, w, h, fps)
+                logger.info(f"✅ Recording started for Camera {cam_id} ({w}x{h} @ {fps}fps)")
             else:
                 logger.warning(f"⚠️  Camera {cam_id} not ready for recording")
         except Exception as e:

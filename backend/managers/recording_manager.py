@@ -18,6 +18,7 @@ class RecordingManager:
         self.writers: Dict[int, cv2.VideoWriter] = {}
         self.start_times: Dict[int, float] = {}
         self.current_files: Dict[int, Path] = {}
+        self.camera_fps: Dict[int, float] = {}
         self.recording_started: Dict[int, bool] = {}
         self.lock = threading.Lock()
         self.log_manager = log_manager
@@ -51,14 +52,25 @@ class RecordingManager:
         except Exception as e:
             logger.error(f"Error checking storage for camera {camera_id}: {e}")
 
-    def start_recording(self, camera_id: int, width: int, height: int):
+    def start_recording(self, camera_id: int, width: int, height: int, fps: float = 20.0):
         with self.lock:
             if camera_id not in self.recording_started or not self.recording_started[camera_id]:
-                self.log_manager.add_log(f"Recording started for camera {camera_id}", "info")
+                # Downscale to 360p (nHD) to drastically reduce file size (~640x360)
+                target_height = min(height, 360)
+                scale = target_height / height
+                target_width = int(width * scale)
+                
+                self.log_manager.add_log(f"Recording started for camera {camera_id} at {fps:.1f} FPS ({width}x{height} -> {target_width}x{target_height})", "info")
                 self.recording_started[camera_id] = True
-            self._start_new_file(camera_id, width, height)
+                self.camera_fps[camera_id] = fps
+                # Store target dimensions for this camera
+                if not hasattr(self, 'camera_dims'): self.camera_dims = {}
+                self.camera_dims[camera_id] = (target_width, target_height)
+                
+            width, height = self.camera_dims[camera_id]
+            self._start_new_file(camera_id, width, height, fps)
 
-    def _start_new_file(self, camera_id: int, width: int, height: int):
+    def _start_new_file(self, camera_id: int, width: int, height: int, fps: float):
         try:
             if camera_id in self.writers:
                 try:
@@ -70,8 +82,9 @@ class RecordingManager:
             timestamp = datetime.now().strftime("%Y%m%d_%H_%M_%S")
             filename = folder / f"rec_{timestamp}.mp4"
             
-            fourcc = cv2.VideoWriter_fourcc(*'avc1')
-            writer = cv2.VideoWriter(str(filename), fourcc, 20.0, (width, height))
+            # Use 'H264' (Intel/Microsoft) instead of 'avc1' (OpenH264) for better Windows compatibility
+            fourcc = cv2.VideoWriter_fourcc(*'H264')
+            writer = cv2.VideoWriter(str(filename), fourcc, fps, (width, height))
             
             if not writer.isOpened():
                 logger.error(f"Failed to create video writer for camera {camera_id}")
@@ -95,9 +108,15 @@ class RecordingManager:
             try:
                 if time.time() - self.start_times[camera_id] >= 60:
                     h, w = frame.shape[:2]
-                    self._start_new_file(camera_id, w, h)
+                    fps = self.camera_fps.get(camera_id, 30.0)
+                    # Use stored target dims for new file creation
+                    target_w, target_h = self.camera_dims.get(camera_id, (w, h))
+                    self._start_new_file(camera_id, target_w, target_h, fps)
                 
                 if camera_id in self.writers and self.writers[camera_id].isOpened():
+                    target_w, target_h = self.camera_dims.get(camera_id, None)
+                    if target_w and target_h:
+                        frame = cv2.resize(frame, (target_w, target_h))
                     self.writers[camera_id].write(frame)
             except Exception as e:
                 logger.error(f"Error writing frame to recording for camera {camera_id}: {e}")

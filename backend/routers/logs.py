@@ -29,7 +29,7 @@ async def get_log_content(date: str):
         raise HTTPException(status_code=404, detail="Log file not found")
     
     try:
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
         return {"date": date, "content": content}
     except Exception as e:

@@ -23,7 +23,7 @@ const LogsView = ({ backendUrl }) => {
             fetch(`${backendUrl}/logs/${selectedDate}`)
                 .then(res => res.json())
                 .then(data => {
-                    setLogContent(data.content);
+                    setLogContent(data.content || '');
                     setLoading(false);
                 })
                 .catch(err => {
@@ -52,14 +52,16 @@ const LogsView = ({ backendUrl }) => {
                     style={{
                         padding: '0.5rem 1rem',
                         borderRadius: '6px',
-                        background: 'var(--background)',
+                        background: '#1a1b20',
                         color: 'white',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        minWidth: '200px'
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        minWidth: '200px',
+                        cursor: 'pointer',
+                        outline: 'none'
                     }}
                 >
                     {dates.map(date => (
-                        <option key={date} value={date}>{date}</option>
+                        <option key={date} value={date} style={{ background: '#1a1b20', color: 'white' }}>{date}</option>
                     ))}
                 </select>
             </div>
