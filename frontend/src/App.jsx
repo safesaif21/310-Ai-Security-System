@@ -4,7 +4,10 @@ import Login from './components/Login';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import CameraGrid from './components/CameraGrid';
-import Controls from './components/Controls';
+
+import Navigation from './components/Navigation';
+import RecordingsView from './components/RecordingsView';
+import LogsView from './components/LogsView';
 import './index.css';
 
 function Dashboard() {
@@ -18,12 +21,17 @@ function Dashboard() {
     weapon_detected: false,
     threat_level: 0
   });
-  const [camerasActive, setCamerasActive] = useState(false);
+  const [camerasActive, setCamerasActive] = useState(true);
   const [systemStatus, setSystemStatus] = useState('OFFLINE');
   const [recordingEnabled, setRecordingEnabled] = useState(false);
   const [logs, setLogs] = useState([]);
+  const [currentView, setCurrentView] = useState('interface');
 
-  const BACKEND_URL = 'http://localhost:8000';
+  // Determine Backend URL dynamically
+  // If loaded from localhost, use localhost. If network IP, use compatible IP.
+  // Port 8000 is hardcoded for backend.
+  const BACKEND_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
+  // const BACKEND_URL = 'http://localhost:8000';
 
   // Fetch initial data
   useEffect(() => {
@@ -32,7 +40,11 @@ function Dashboard() {
         // Fetch cameras
         const camerasRes = await fetch(`${BACKEND_URL}/cameras`);
         const camerasData = await camerasRes.json();
-        setCameras(camerasData.cameras);
+        const camerasWithUrl = camerasData.cameras.map(cam => ({
+          ...cam,
+          url: `${BACKEND_URL}${cam.url}`
+        }));
+        setCameras(camerasWithUrl);
         setSystemStatus('ONLINE');
       } catch (error) {
         console.error('Error fetching cameras:', error);
@@ -134,18 +146,27 @@ function Dashboard() {
         overflow: 'hidden',
         minHeight: 0
       }}>
-        <Controls
-          camerasActive={camerasActive}
-          setCamerasActive={setCamerasActive}
-          detectionEnabled={detectionEnabled}
-          recordingEnabled={recordingEnabled}
-          setRecordingEnabled={setRecordingEnabled}
-          logs={logs}
-        />
-        <CameraGrid
-          cameras={cameras}
-          camerasActive={camerasActive}
-        />
+        <Navigation currentView={currentView} onViewChange={setCurrentView} />
+
+        {currentView === 'interface' && (
+          <CameraGrid
+            cameras={cameras}
+            camerasActive={camerasActive}
+          />
+        )}
+
+        {currentView === 'recordings' && (
+          <RecordingsView
+            cameras={cameras}
+            backendUrl={BACKEND_URL}
+          />
+        )}
+
+        {currentView === 'logs' && (
+          <LogsView
+            backendUrl={BACKEND_URL}
+          />
+        )}
       </main>
 
       <Sidebar

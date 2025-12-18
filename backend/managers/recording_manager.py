@@ -70,7 +70,7 @@ class RecordingManager:
             timestamp = datetime.now().strftime("%Y%m%d_%H_%M_%S")
             filename = folder / f"rec_{timestamp}.mp4"
             
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            fourcc = cv2.VideoWriter_fourcc(*'avc1')
             writer = cv2.VideoWriter(str(filename), fourcc, 20.0, (width, height))
             
             if not writer.isOpened():
@@ -80,6 +80,8 @@ class RecordingManager:
             self.writers[camera_id] = writer
             self.start_times[camera_id] = time.time()
             self.current_files[camera_id] = filename
+            
+
             
             self._check_storage(camera_id)
         except Exception as e:

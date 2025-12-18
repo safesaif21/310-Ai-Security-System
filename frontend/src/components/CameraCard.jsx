@@ -12,7 +12,8 @@ const CameraCard = ({ camera, active }) => {
         setError(false);
     };
 
-    const handleError = () => {
+    const handleError = (e) => {
+        console.error(`Error loading image for ${camera?.name} (${camera?.url}):`, e);
         setLoading(false);
         setError(true);
     };

@@ -5,7 +5,7 @@ import logging
 import platform
 import threading
 import time
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 
 logger = logging.getLogger(__name__)
 
@@ -18,34 +18,145 @@ class CameraManager:
         self.weapon_detected: Dict[int, bool] = {}
         self.last_frame_time: Dict[int, float] = {}
         self.stats_lock = threading.Lock()
+        self.init_lock = threading.Lock()  # Add lock for camera initialization
         self.log_manager = log_manager
         
         self.is_windows = platform.system() == "Windows"
         self.is_mac = platform.system() == "Darwin"
         
+        # Define available backends based on platform
+        self.backends = self._get_platform_backends()
+        
         logger.info(f"🖥️  Platform detected: {platform.system()}")
 
+    def _get_platform_backends(self) -> List[Tuple[int, str]]:
+        """Get list of backends to try for this platform"""
+        if self.is_windows:
+            return [
+                (cv2.CAP_DSHOW, "DirectShow"),
+                (cv2.CAP_MSMF, "Media Foundation"),
+            ]
+        elif self.is_mac:
+            return [(cv2.CAP_AVFOUNDATION, "AVFoundation")]
+        else:
+            return [
+                (cv2.CAP_V4L2, "V4L2"),
+                (cv2.CAP_ANY, "Default")
+            ]
+
+    def _try_open_camera(self, camera_id: int, timeout: float = 2.0) -> Optional[cv2.VideoCapture]:
+        """Try to open camera with all available backends"""
+        # Special handling for camera 0 on Windows - often needs MSMF
+        backends = self.backends
+        if self.is_windows and camera_id == 0:
+            backends = [(cv2.CAP_MSMF, "Media Foundation"), (cv2.CAP_DSHOW, "DirectShow")]
+        
+        for backend_id, backend_name in backends:
+
+            # Try up to 2 times for each backend (in case camera is releasing)
+            for attempt in range(2):
+                try:
+                    if attempt > 0:
+                        logger.debug(f"Retry attempt {attempt + 1} for camera {camera_id} with {backend_name}")
+                        time.sleep(0.5)  # Wait before retry
+                    else:
+                        logger.debug(f"Trying {backend_name} for camera {camera_id}...")
+                
+                        cap = cv2.VideoCapture(camera_id, backend_id)
+                        
+                        # Longer timeout for MSMF on camera 0
+                        if backend_id == cv2.CAP_MSMF and camera_id == 0:
+                            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 2000)
+                        else:
+                            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 500)
+                        
+                        if cap.isOpened():
+                            # Quick frame test
+                            ret = cap.grab()
+                            if ret:
+                                logger.info(f"✓ Camera {camera_id} opened with {backend_name}")
+                                return cap
+                            else:
+                                logger.debug(f"{backend_name}: grab() failed")
+                                cap.release()
+                        else:
+                            logger.debug(f"{backend_name}: not opened")
+                            cap.release()
+                            
+                except Exception as e:
+                    logger.debug(f"{backend_name} exception: {e}")
+        
+        return None
+
+    def detect_available_cameras(self, max_cameras: int = 3) -> List[int]:
+        """Detect all available cameras"""
+        available_indices = []
+        self.log_manager.add_log("🔍 Scanning for cameras...", "info")
+        logger.info("Starting camera detection...")
+        
+        start_time = time.time()
+        
+        for i in range(max_cameras):
+            cap = self._try_open_camera(i, timeout=1.5)
+            
+            if cap is not None:
+                try:
+                    # Verify we can actually get a frame
+                    ret, frame = cap.retrieve()
+                    if ret and frame is not None and frame.size > 0:
+                        h, w = frame.shape[:2]
+                        available_indices.append(i)
+                        logger.info(f"✅ Camera {i} detected ({w}x{h})")
+                        self.log_manager.add_log(f"Camera {i} detected ({w}x{h})", "success")
+                    else:
+                        logger.debug(f"Camera {i} opened but frame invalid")
+                except Exception as e:
+                    logger.debug(f"Camera {i} error during verification: {e}")
+                finally:
+                    # Properly release and wait for Windows to free the device
+                    cap.release()
+                    if self.is_windows:
+                        time.sleep(0.5)  # Windows needs time to release camera
+            
+            # Very small delay to prevent camera conflicts
+            time.sleep(0.02)
+        
+        elapsed = time.time() - start_time
+        logger.info(f"Camera scan complete in {elapsed:.1f}s - Found: {available_indices}")
+        
+        if available_indices:
+            self.log_manager.add_log(
+                f"✅ Found {len(available_indices)} camera(s) in {elapsed:.1f}s", 
+                "success"
+            )
+        else:
+            self.log_manager.add_log("⚠️  No cameras detected", "warning")
+        
+        return available_indices
+
     def get_camera(self, camera_id: int) -> Tuple[Optional[cv2.VideoCapture], Optional[threading.Lock]]:
-        if camera_id not in self.cameras:
+        """Get or open a camera"""
+        with self.init_lock:  # Thread-safe camera initialization
+            # Return existing camera if already open
+            if camera_id in self.cameras:
+                return self.cameras[camera_id], self.locks[camera_id]
+            
             self.log_manager.add_log(f"Opening camera {camera_id}...", "info")
             
+            cap = self._try_open_camera(camera_id, timeout=3.0)
+            
+            if cap is None:
+                self.log_manager.add_log(f"Failed to open camera {camera_id}", "error")
+                return None, None
+            
             try:
-                if self.is_windows:
-                    cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
-                elif self.is_mac:
-                    cap = cv2.VideoCapture(camera_id, cv2.CAP_AVFOUNDATION)
-                else:
-                    cap = cv2.VideoCapture(camera_id)
-
-                if not cap.isOpened():
-                    self.log_manager.add_log(f"Failed to open camera {camera_id}", "error")
-                    return None, None
-                
+                # Configure camera
                 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
                 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
                 cap.set(cv2.CAP_PROP_FPS, 30)
                 
+                # Store camera
                 self.cameras[camera_id] = cap
                 self.locks[camera_id] = threading.Lock()
                 self.last_frame_time[camera_id] = time.time()
@@ -63,29 +174,42 @@ class CameraManager:
                     }
                 
                 self.log_manager.add_log(f"Camera {camera_id} connected", "success")
+                
+                # Return INSIDE the lock and try block
+                return self.cameras[camera_id], self.locks[camera_id]
+                
             except Exception as e:
-                logger.error(f"Error opening camera {camera_id}: {e}")
-                self.log_manager.add_log(f"Error opening camera {camera_id}: {str(e)}", "error")
+                logger.error(f"Error configuring camera {camera_id}: {e}")
+                cap.release()
                 return None, None
         
-        return self.cameras[camera_id], self.locks[camera_id]
+        # This line should NEVER be reached, but just in case
+        return None, None
 
     def release_camera(self, camera_id: int):
-        if camera_id in self.cameras:
-            try:
-                self.cameras[camera_id].release()
-                del self.cameras[camera_id]
-                if camera_id in self.locks:
-                    del self.locks[camera_id]
-                self.log_manager.add_log(f"Released camera {camera_id}", "info")
-            except Exception as e:
-                logger.error(f"Error releasing camera {camera_id}: {e}")
+        """Release a specific camera"""
+        with self.init_lock:  # Thread-safe camera release
+            if camera_id in self.cameras:
+                try:
+                    self.cameras[camera_id].release()
+                    del self.cameras[camera_id]
+                    if camera_id in self.locks:
+                        del self.locks[camera_id]
+                    self.log_manager.add_log(f"Released camera {camera_id}", "info")
+                    
+                    # Windows needs time to fully release the device
+                    if self.is_windows:
+                        time.sleep(0.1)
+                except Exception as e:
+                    logger.error(f"Error releasing camera {camera_id}: {e}")
 
     def release_all(self):
+        """Release all cameras"""
         for camera_id in list(self.cameras.keys()):
             self.release_camera(camera_id)
 
     def update_stats(self, camera_id: int, people_count: int, weapon_detected: bool):
+        """Update detection statistics for a camera"""
         with self.stats_lock:
             prev_count = self.people_counts.get(camera_id, 0)
             prev_weapon = self.weapon_detected.get(camera_id, False)
@@ -94,12 +218,19 @@ class CameraManager:
             self.weapon_detected[camera_id] = weapon_detected
             
             if people_count > 0 and prev_count == 0:
-                self.log_manager.add_log(f"Person detected on Camera {camera_id} ({people_count})", "detection")
+                self.log_manager.add_log(
+                    f"Person detected on Camera {camera_id} ({people_count})", 
+                    "detection"
+                )
             
             if weapon_detected and not prev_weapon:
-                self.log_manager.add_log(f"WEAPON DETECTED on Camera {camera_id}", "warning")
+                self.log_manager.add_log(
+                    f"WEAPON DETECTED on Camera {camera_id}", 
+                    "warning"
+                )
 
     def get_stats(self):
+        """Get overall system statistics"""
         with self.stats_lock:
             total_people = sum(self.people_counts.values())
             any_weapon = any(self.weapon_detected.values())

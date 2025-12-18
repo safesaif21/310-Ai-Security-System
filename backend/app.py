@@ -21,7 +21,8 @@ from backend.managers.recording_manager import RecordingManager
 from backend.managers.master_recorder import MasterRecorder
 from backend.utils.video_utils import draw_timestamp
 from backend.database.mongodb import get_database, close_mongo_connection
-from backend.routers import auth, health
+from backend.database.mongodb import get_database, close_mongo_connection
+from backend.routers import auth, health, recordings, logs
 
 logger = logging.getLogger(__name__)
 
@@ -41,36 +42,26 @@ model_lock = threading.Lock()
 detection_enabled = False
 recording_enabled = False
 
-# Initialize FastAPI app
-app = FastAPI(
-    title=settings.app_name,
-    version=settings.app_version,
-    description="AI-powered security system with real-time threat detection",
-)
+# Global event for new frames
+frame_events: Dict[int, threading.Event] = {}
+stop_events: Dict[int, threading.Event] = {}
 
-# CORS configuration from settings
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Include API routers
-app.include_router(auth.router)
-app.include_router(health.router)
-
-def generate_mjpeg_stream(camera_id: int):
-    """Generate MJPEG stream for a camera"""
+def capture_camera_loop(camera_id: int):
+    """Background loop to capture frames from a camera"""
+    logger.info(f"Starting capture loop for camera {camera_id}")
     cap, lock = camera_manager.get_camera(camera_id)
     if cap is None:
+        logger.error(f"Could not open camera {camera_id} for capture loop")
         return
-    
+
     consecutive_failures = 0
     last_settings = {}
     
-    while True:
+    # Create event for this camera
+    if camera_id not in frame_events:
+        frame_events[camera_id] = threading.Event()
+    
+    while not stop_events.get(camera_id, threading.Event()).is_set():
         try:
             with lock:
                 current_settings = camera_manager.settings.get(camera_id, {})
@@ -95,8 +86,9 @@ def generate_mjpeg_stream(camera_id: int):
                 consecutive_failures += 1
                 if consecutive_failures > settings.max_consecutive_failures:
                     log_manager.add_log(f"Camera {camera_id} appears frozen, releasing", "error")
-                    camera_manager.release_camera(camera_id)
-                    break
+                    # Break loop, but maybe we should try to re-init? 
+                    # For now, just stop to prevent infinite error loops
+                    break 
                 time.sleep(0.1)
                 continue
             
@@ -108,6 +100,7 @@ def generate_mjpeg_stream(camera_id: int):
             frame_people_count = 0
             frame_weapon_detected = False
             
+            # Run detection if enabled
             if detection_enabled and current_model is not None:
                 with model_lock:
                     try:
@@ -135,20 +128,95 @@ def generate_mjpeg_stream(camera_id: int):
 
             with frames_lock:
                 latest_frames[camera_id] = frame.copy()
+            
+            # Signal new frame available
+            frame_events[camera_id].set()
+            frame_events[camera_id].clear() # Reset for next frame
 
             if recording_enabled:
                 recording_manager.write_frame(camera_id, frame)
             elif camera_id in recording_manager.writers:
                 recording_manager.stop_recording(camera_id)
             
+            # Cap at ~30 FPS
+            time.sleep(0.01)
+
+        except Exception as e:
+            logger.error(f"Capture loop error camera {camera_id}: {e}")
+            time.sleep(0.1)
+        
+        if consecutive_failures % 100 == 0:
+             logger.debug(f"Cam {camera_id} capture loop alive. Settings: {last_settings}")
+    
+    logger.info(f"Stopping capture loop for camera {camera_id}")
+    camera_manager.release_camera(camera_id)
+
+# Initialize FastAPI app
+app = FastAPI(
+    title=settings.app_name,
+    version=settings.app_version,
+    description="AI-powered security system with real-time threat detection",
+)
+
+# CORS configuration from settings
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include API routers
+app.include_router(auth.router)
+app.include_router(health.router)
+app.include_router(recordings.router)
+app.include_router(logs.router)
+
+def generate_mjpeg_stream(camera_id: int):
+    """Generate MJPEG stream for a camera from the latest captured frame"""
+    if camera_id not in latest_frames and camera_id not in frame_events:
+         # Wait a bit to see if it starts
+         time.sleep(1)
+         if camera_id not in latest_frames:
+             return
+
+    # Helper event to wait for
+    event = frame_events.get(camera_id)
+    logger.info(f"Stream started for camera {camera_id}")
+
+    frame_count_debug = 0
+
+    while True:
+        try:
+            # Wait for new frame
+            if event:
+                event.wait(timeout=1.0)
+            
+            with frames_lock:
+                if camera_id in latest_frames:
+                    frame = latest_frames[camera_id].copy()
+                else:
+                    frame = None
+            
+            if frame is None:
+                time.sleep(0.1)
+                continue
+            
             ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, settings.jpeg_quality])
             if ret:
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
             
-            time.sleep(0.033)
+            # Avoid tight loops if event logic fails
+            time.sleep(0.01)
+
+            frame_count_debug += 1
+            if frame_count_debug % 30 == 0:
+                logger.debug(f"Stream {camera_id} sending frame {frame_count_debug}")
             
         except GeneratorExit:
+            logger.info(f"Stream client disconnected for camera {camera_id}")
             break
         except Exception as e:
             logger.error(f"Stream error: {e}")
@@ -190,30 +258,27 @@ async def video_feed(camera_id: int):
 
 @app.get("/cameras")
 async def list_cameras():
-    available = []
-    for i in range(settings.max_cameras):
-        try:
-            if camera_manager.is_windows:
-                cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
-            else:
-                cap = cv2.VideoCapture(i)
-            
-            # Shorter timeout to reduce delay
-            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 500)
-            
-            if cap.isOpened():
-                ret, _ = cap.read()
-                if ret:
-                    available.append({
-                        "id": i,
-                        "name": f"Camera {i}",
-                        "url": f"http://localhost:8000/camera/{i}"
-                    })
-            cap.release()
-        except Exception:
-            # Silently skip cameras that can't be accessed
-            continue
-    return {"cameras": available}
+    # Return currently active cameras + any that were detected
+    # With the new background loop, we could just return 'latest_frames.keys()'
+    # but we also want to return what is 'available' even if not currently running (e.g. crashed)
+    
+    # For now, let's just return all cameras that we have data for or are in manager
+    active_cameras = []
+    
+    # Combine keys from camera_manager.cameras and any detected available ones
+    # We rely on the startup detection being the source of truth for now
+    
+    # We can invoke detection if no cameras are found? 
+    # Or just return the ones we started
+    
+    for cam_id in list(camera_manager.cameras.keys()):
+        active_cameras.append({
+            "id": cam_id,
+            "name": f"Camera {cam_id}",
+            "url": f"/camera/{cam_id}" # Relative URL for network access
+        })
+        
+    return {"cameras": active_cameras}
 
 @app.get("/models")
 async def list_models():
@@ -267,10 +332,13 @@ async def toggle_recording(enabled: bool):
     
     if enabled:
         for cid in camera_manager.cameras:
-            cap = camera_manager.cameras[cid]
-            w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            recording_manager.start_recording(cid, w, h)
+            # Check if we already have a writer for this camera to avoid double-start
+            if cid not in recording_manager.writers:
+                 cap = camera_manager.cameras[cid]
+                 w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                 h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                 recording_manager.start_recording(cid, w, h)
+        
         master_recorder.start_recording()
     else:
         recording_manager.stop_all()
@@ -306,29 +374,91 @@ async def get_stats():
 async def get_logs():
     return {"logs": log_manager.get_logs()}
 
+@app.get("/debug/status")
+async def debug_status():
+    return {
+        "recording_enabled": recording_enabled,
+        "active_recordings": list(recording_manager.writers.keys()),
+        "master_recording": master_recorder.writer is not None,
+        "camera_threads": list(stop_events.keys()),
+        "active_cameras": list(camera_manager.cameras.keys())
+    }
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize database on application startup"""
-    logger.info("🚀 Starting AI Security System...")
+    logger.info("Starting AI Security System...")
     logger.info(f"Environment: {settings.environment}")
-    logger.info(f"MongoDB URI: {settings.mongodb_uri}")
-    logger.info(f"Database: {settings.mongodb_database}")
     
     # Initialize MongoDB connection and collections
     try:
         db = get_database()
         logger.info(f"✅ Connected to MongoDB: {db.name}")
-        logger.info(f"   Collections: {', '.join(db.list_collection_names())}")
     except Exception as e:
         logger.error(f"❌ MongoDB connection failed: {e}")
         logger.error("   Make sure MongoDB is running!")
     
     log_manager.add_log("System started", "info")
+    
+    # Auto-detect available cameras
+    available_cameras = camera_manager.detect_available_cameras(settings.max_cameras)
+    
+    if not available_cameras:
+        logger.warning("No cameras detected on startup.")
+        log_manager.add_log("No cameras detected on startup", "warning")
+        return
+    
+    # Start background capture threads for each camera
+    logger.info(f"Starting capture threads for {len(available_cameras)} camera(s)...")
+    for cam_id in available_cameras:
+        logger.info(f"Starting background capture for Camera {cam_id}")
+        stop_events[cam_id] = threading.Event()
+        t = threading.Thread(target=capture_camera_loop, args=(cam_id,), daemon=True)
+        t.start()
+    
+    # Give capture threads time to initialize cameras
+    logger.info("Waiting for cameras to initialize...")
+    time.sleep(2)
+    
+    # Enable global recording
+    global recording_enabled
+    recording_enabled = True
+    logger.info("✅ Enabling global recording on startup")
+    log_manager.add_log("Global recording enabled on startup", "info")
+    
+    # Start recording for all cameras
+    for cam_id in available_cameras:
+        try:
+            cap, _ = camera_manager.get_camera(cam_id)
+            if cap is not None and cap.isOpened():
+                w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                recording_manager.start_recording(cam_id, w, h)
+                logger.info(f"✅ Recording started for Camera {cam_id} ({w}x{h})")
+            else:
+                logger.warning(f"⚠️  Camera {cam_id} not ready for recording")
+        except Exception as e:
+            logger.error(f"❌ Failed to start recording for Camera {cam_id}: {e}")
+    
+    # Start master recorder
+    try:
+        master_recorder.start_recording()
+        logger.info("✅ Master recorder started")
+    except Exception as e:
+        logger.error(f"❌ Failed to start master recorder: {e}")
+    
+    logger.info("🚀 System startup complete!")
+    log_manager.add_log("System startup complete", "success")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Shutting down...")
+    
+    # Stop all capture threads
+    for cam_id, event in stop_events.items():
+        event.set()
+    
     recording_manager.stop_all()
     master_recorder.stop_recording()
     camera_manager.release_all()

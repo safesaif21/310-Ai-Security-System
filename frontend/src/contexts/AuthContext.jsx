@@ -19,9 +19,12 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
     }, []);
 
+    // Determine Backend URL dynamically
+    const BACKEND_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
+
     const login = async (username, password) => {
         try {
-            const response = await fetch('http://localhost:8000/api/v1/auth/login', {
+            const response = await fetch(`${BACKEND_URL}/api/v1/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -41,7 +44,7 @@ export const AuthProvider = ({ children }) => {
             setToken(data.access_token);
 
             // Fetch user info
-            const userResponse = await fetch('http://localhost:8000/api/v1/auth/me', {
+            const userResponse = await fetch(`${BACKEND_URL}/api/v1/auth/me`, {
                 headers: {
                     'Authorization': `Bearer ${data.access_token}`,
                 },

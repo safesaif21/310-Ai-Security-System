@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = Field(default=7, alias="REFRESH_TOKEN_EXPIRE_DAYS")
     
     # CORS
-    allowed_origins: str = Field(default="http://localhost:5173,http://localhost:3000", alias="ALLOWED_ORIGINS")
+    allowed_origins: str = Field(default="*", alias="ALLOWED_ORIGINS")
     
     @property
     def cors_origins(self) -> List[str]:
