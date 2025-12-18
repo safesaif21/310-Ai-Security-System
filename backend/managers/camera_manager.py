@@ -18,6 +18,12 @@ class CameraManager:
         self.weapon_detected: Dict[int, bool] = {}
         self.last_frame_time: Dict[int, float] = {}
         self.stats_lock = threading.Lock()
+        
+        # Detection persistence and cooldown
+        self.people_streak: Dict[int, int] = {}
+        self.weapon_streak: Dict[int, int] = {}
+        self.last_log_times: Dict[int, Dict[str, float]] = {}
+        
         self.init_lock = threading.Lock()  # Add lock for camera initialization
         self.log_manager = log_manager
         
@@ -90,6 +96,14 @@ class CameraManager:
 
     def detect_available_cameras(self, max_cameras: int = 3) -> List[int]:
         """Detect all available cameras"""
+        # FAST PATH: If fixed count is set, skip detection
+        from backend.config import settings
+        if settings.fixed_camera_count is not None:
+            count = settings.fixed_camera_count
+            logger.info(f"⚡ Using fixed camera count: {count}")
+            self.log_manager.add_log(f"Using fixed camera count: {count}", "info")
+            return list(range(count))
+
         available_indices = []
         self.log_manager.add_log("🔍 Scanning for cameras...", "info")
         logger.info("Starting camera detection...")
@@ -97,6 +111,7 @@ class CameraManager:
         start_time = time.time()
         
         for i in range(max_cameras):
+            # Only log debug for scanning to reduce noise
             cap = self._try_open_camera(i, timeout=1.5)
             
             if cap is not None:
@@ -209,25 +224,49 @@ class CameraManager:
             self.release_camera(camera_id)
 
     def update_stats(self, camera_id: int, people_count: int, weapon_detected: bool):
-        """Update detection statistics for a camera"""
+        """Update detection statistics for a camera with persistence and cooldown"""
         with self.stats_lock:
-            prev_count = self.people_counts.get(camera_id, 0)
-            prev_weapon = self.weapon_detected.get(camera_id, False)
+            now = time.time()
+            if camera_id not in self.last_log_times:
+                self.last_log_times[camera_id] = {"person": 0, "weapon": 0}
             
+            # --- Person Detection Persistence & Cooldown ---
+            current_people_streak = self.people_streak.get(camera_id, 0)
+            if people_count > 0:
+                current_people_streak += 1
+            else:
+                current_people_streak = 0
+            self.people_streak[camera_id] = current_people_streak
+            
+            # Only log if person count changed AND we have persistence AND cooldown passed
+            if current_people_streak == 10: # Log after 10 consecutive frames
+                last_person_log = self.last_log_times[camera_id]["person"]
+                if now - last_person_log > 30: # 30s cooldown
+                    self.log_manager.add_log(
+                        f"({people_count}) Person detected on Camera {camera_id} ", 
+                        "detection"
+                    )
+                    self.last_log_times[camera_id]["person"] = now
+            
+            # --- Weapon Detection Persistence & Cooldown ---
+            current_weapon_streak = self.weapon_streak.get(camera_id, 0)
+            if weapon_detected:
+                current_weapon_streak += 1
+            else:
+                current_weapon_streak = 0
+            self.weapon_streak[camera_id] = current_weapon_streak
+            
+            if current_weapon_streak == 5: # Faster for weapons
+                last_weapon_log = self.last_log_times[camera_id]["weapon"]
+                if now - last_weapon_log > 60: # Longer cooldown for weapons to avoid spamming alerts
+                    self.log_manager.add_log(
+                        f"WEAPON DETECTED on Camera {camera_id}", 
+                        "warning"
+                    )
+                    self.last_log_times[camera_id]["weapon"] = now
+
             self.people_counts[camera_id] = people_count
             self.weapon_detected[camera_id] = weapon_detected
-            
-            if people_count > 0 and prev_count == 0:
-                self.log_manager.add_log(
-                    f"Person detected on Camera {camera_id} ({people_count})", 
-                    "detection"
-                )
-            
-            if weapon_detected and not prev_weapon:
-                self.log_manager.add_log(
-                    f"WEAPON DETECTED on Camera {camera_id}", 
-                    "warning"
-                )
 
     def get_stats(self):
         """Get overall system statistics"""

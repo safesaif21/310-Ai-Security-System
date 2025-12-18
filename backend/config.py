@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     
     # Camera Settings
     max_cameras: int = Field(default=10, alias="MAX_CAMERAS")
+    fixed_camera_count: int = Field(default=None, alias="FIXED_CAMERA_COUNT")
     camera_width: int = Field(default=640, alias="CAMERA_WIDTH")
     camera_height: int = Field(default=480, alias="CAMERA_HEIGHT")
     camera_fps: int = Field(default=30, alias="CAMERA_FPS")

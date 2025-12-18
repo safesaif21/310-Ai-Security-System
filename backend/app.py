@@ -1,6 +1,17 @@
 """FastAPI application with all routes"""
 
+import os
+import signal
+import sys
+import threading
+import time
+import uvicorn
 import cv2
+
+# Silence OpenCV logs
+os.environ["OPENCV_LOG_LEVEL"] = "OFF"
+os.environ["OPENCV_VIDEOIO_DEBUG"] = "0"
+
 import logging
 import threading
 import time
@@ -85,14 +96,21 @@ def capture_camera_loop(camera_id: int):
             if not success:
                 consecutive_failures += 1
                 if consecutive_failures > settings.max_consecutive_failures:
-                    log_manager.add_log(f"Camera {camera_id} appears frozen, releasing", "error")
-                    # Break loop, but maybe we should try to re-init? 
-                    # For now, just stop to prevent infinite error loops
-                    break 
-                time.sleep(0.1)
-                continue
+                    if consecutive_failures % 100 == 0:
+                        logger.warning(f"Camera {camera_id} is struggling (fail count: {consecutive_failures})")
+                        # Try to re-initialize camera if it's really stuck
+                        if consecutive_failures % 300 == 0:
+                             log_manager.add_log(f"Camera {camera_id} restarting connection...", "warning")
+                             cap.release()
+                             time.sleep(1)
+                             cap, _ = camera_manager.get_camera(camera_id)
+                    time.sleep(0.1)
+                    continue
             
-            consecutive_failures = 0
+            # Reset failures on success
+            if consecutive_failures > 0:
+                logger.info(f"Camera {camera_id} recovered after {consecutive_failures} failures")
+                consecutive_failures = 0
             camera_manager.last_frame_time[camera_id] = time.time()
             
             draw_timestamp(frame)
@@ -212,8 +230,8 @@ def generate_mjpeg_stream(camera_id: int):
             time.sleep(0.01)
 
             frame_count_debug += 1
-            if frame_count_debug % 30 == 0:
-                logger.debug(f"Stream {camera_id} sending frame {frame_count_debug}")
+            if frame_count_debug % 300 == 0: # Log every ~10s instead of ~1s
+                logger.debug(f"Stream {camera_id} active (frame {frame_count_debug})")
             
         except GeneratorExit:
             logger.info(f"Stream client disconnected for camera {camera_id}")
@@ -426,8 +444,6 @@ async def startup_event():
     # Enable global recording
     global recording_enabled
     recording_enabled = True
-    logger.info("✅ Enabling global recording on startup")
-    log_manager.add_log("Global recording enabled on startup", "info")
     
     # Start recording for all cameras
     for cam_id in available_cameras:
