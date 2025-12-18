@@ -38,7 +38,7 @@ const RecordingsView = ({ cameras, backendUrl }) => {
     }, [selectedCamera, backendUrl]);
 
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
             {/* Camera Selection - Horizontal Scroll */}
             <div style={{
@@ -85,13 +85,19 @@ const RecordingsView = ({ cameras, backendUrl }) => {
                         minWidth: '150px'
                     }}
                 >
-                    <span style={{ fontSize: '1.2rem', display: 'block', marginBottom: '0.5rem' }}>🎬</span>
-                    <span style={{ fontWeight: '600' }}>Master Grid</span>
+                    <span style={{ fontSize: '1.2rem', display: 'block' }}>🎬</span>
+                    <span style={{ fontWeight: '600' }}>Master</span>
                 </button>
             </div>
 
             {/* Main Content Area */}
-            <div style={{ display: 'flex', gap: '1rem', flex: 1, minHeight: 0 }}>
+            <div className="recordings-content" style={{
+                display: 'flex',
+                gap: '1rem',
+                flex: 1,
+                minHeight: 0,
+                flexDirection: window.innerWidth <= 768 ? 'column' : 'row'
+            }}>
 
                 {/* Video Player */}
                 <div style={{ flex: 2, background: 'black', borderRadius: '12px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

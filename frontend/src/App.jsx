@@ -12,6 +12,17 @@ import './index.css';
 
 function Dashboard() {
   const { user, logout } = useAuth();
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isMobile = windowWidth <= 1024;
+  const isSmartphone = windowWidth <= 768;
+
   const [cameras, setCameras] = useState([]);
   const [models, setModels] = useState([]);
   const [currentModel, setCurrentModel] = useState(null);
@@ -139,11 +150,11 @@ function Dashboard() {
       />
 
       <main className="main-content" style={{
-        padding: '1.5rem',
+        padding: isSmartphone ? '1rem' : '1.5rem',
         display: 'flex',
         flexDirection: 'column',
         gap: '1.5rem',
-        overflow: 'hidden',
+        overflow: isMobile ? 'visible' : 'hidden',
         minHeight: 0
       }}>
         <Navigation currentView={currentView} onViewChange={setCurrentView} />
@@ -152,6 +163,7 @@ function Dashboard() {
           <CameraGrid
             cameras={cameras}
             camerasActive={camerasActive}
+            isSmartphone={isSmartphone}
           />
         )}
 
@@ -159,6 +171,7 @@ function Dashboard() {
           <RecordingsView
             cameras={cameras}
             backendUrl={BACKEND_URL}
+            isSmartphone={isSmartphone}
           />
         )}
 

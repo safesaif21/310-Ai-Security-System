@@ -52,23 +52,30 @@ const Sidebar = ({
 
     return (
         <aside style={{
-            height: '100%',
+            height: window.innerWidth <= 1024 ? 'auto' : '100%',
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
             background: 'var(--bg-sidebar)',
-            borderLeft: '1px solid var(--border)'
+            borderLeft: window.innerWidth <= 1024 ? 'none' : '1px solid var(--border)',
+            borderTop: window.innerWidth <= 1024 ? '1px solid var(--border)' : 'none'
         }}>
             <div className="sidebar-content" style={{
-                padding: '1.5rem',
-                overflowY: 'auto',
+                padding: window.innerWidth <= 768 ? '1rem' : '1.5rem',
+                paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))',
+                overflowY: window.innerWidth <= 1024 ? 'visible' : 'auto',
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '1.5rem'
+                gap: window.innerWidth <= 768 ? '1rem' : '1.5rem'
             }}>
                 {/* Main Control Panel */}
-                <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                <div className="card" style={{
+                    padding: window.innerWidth <= 768 ? '1rem' : '1.5rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: window.innerWidth <= 768 ? '1rem' : '2rem'
+                }}>
 
                     {/* Model Selection Section */}
                     <div>
@@ -141,7 +148,7 @@ const Sidebar = ({
                             Current Threat Level
                         </h3>
                         <div style={{
-                            fontSize: '4rem',
+                            fontSize: window.innerWidth <= 768 ? '2.5rem' : '4rem',
                             fontWeight: '700',
                             color: stats.threat_level > 5 ? 'var(--danger)' : 'var(--success)',
                             lineHeight: 1,

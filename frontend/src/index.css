@@ -29,13 +29,27 @@
   box-sizing: border-box;
 }
 
+.app-container {
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  grid-template-rows: auto 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
 
+html,
+body {
+  background: var(--bg-dark);
+  /* Ensure no white bars */
+}
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   background: radial-gradient(ellipse at top, #1a1d29 0%, var(--bg-dark) 50%);
   color: var(--text-main);
   height: 100vh;
+  margin: 0;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -45,12 +59,27 @@ body {
   height: 100%;
 }
 
-.app-container {
-  display: grid;
-  grid-template-columns: 1fr 350px;
-  grid-template-rows: auto 1fr;
-  height: 100vh;
-  overflow: hidden;
+@media (max-width: 1024px) {
+  body {
+    overflow-y: auto;
+    /* Allow scrolling on mobile */
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .app-container {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  /* Force scrollbar visibility on some mobile browsers if possible */
+  ::-webkit-scrollbar {
+    width: 6px;
+    display: block !important;
+  }
 }
 
 /* Scrollbar */

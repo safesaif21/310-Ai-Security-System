@@ -42,7 +42,7 @@ const LogsView = ({ backendUrl }) => {
     };
 
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {/* Date Selector */}
             <div style={{ padding: '1rem', background: 'rgba(20, 21, 25, 0.8)', borderRadius: '12px', display: 'flex', gap: '1rem', alignItems: 'center' }}>
                 <span style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>Select Date:</span>
@@ -72,6 +72,7 @@ const LogsView = ({ backendUrl }) => {
                 background: 'rgba(0, 0, 0, 0.3)',
                 borderRadius: '12px',
                 padding: '1.5rem',
+                paddingBottom: '4rem', // Extra space at bottom to prevent cut-off
                 overflowY: 'auto',
                 fontFamily: 'monospace',
                 border: '1px solid rgba(255,255,255,0.1)'

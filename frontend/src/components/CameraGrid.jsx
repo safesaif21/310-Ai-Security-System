@@ -10,18 +10,24 @@ const CameraGrid = ({ cameras, camerasActive }) => {
         return 'grid-cols-3 grid-rows-3';
     };
 
-    // Inline grid styles based on count
+    // Use window width if possible or just use a more responsive grid approach
+    const isMobile = window.innerWidth <= 768;
+
     const gridStyle = {
         display: 'grid',
         gap: '1rem',
         flex: 1,
         minHeight: 0,
-        gridTemplateColumns: cameras.length <= 1 ? '1fr' :
-            cameras.length <= 4 ? 'repeat(2, 1fr)' :
-                'repeat(3, 1fr)',
-        gridTemplateRows: cameras.length <= 2 ? '1fr' :
-            cameras.length <= 6 ? 'repeat(2, 1fr)' :
-                'repeat(3, 1fr)'
+        gridTemplateColumns: isMobile ? '1fr' : (
+            cameras.length <= 1 ? '1fr' :
+                cameras.length <= 4 ? 'repeat(2, 1fr)' :
+                    'repeat(3, 1fr)'
+        ),
+        gridTemplateRows: isMobile ? 'auto' : (
+            cameras.length <= 2 ? '1fr' :
+                cameras.length <= 6 ? 'repeat(2, 1fr)' :
+                    'repeat(3, 1fr)'
+        )
     };
 
     return (

@@ -21,10 +21,11 @@ const Navigation = ({ currentView, onViewChange }) => {
                     onClick={() => onViewChange(tab.id)}
                     style={{
                         background: currentView === tab.id ? 'var(--primary)' : 'rgba(255, 255, 255, 0.05)',
-                        padding: '0.75rem 2rem',
+                        padding: window.innerWidth <= 768 ? '0.6rem 0.5rem' : '0.75rem 2rem',
                         borderRadius: '8px',
                         color: 'white',
                         fontWeight: '600',
+                        fontSize: window.innerWidth <= 768 ? '0.7rem' : '0.875rem',
                         letterSpacing: '1px',
                         cursor: 'pointer',
                         transition: 'all 0.2s ease',

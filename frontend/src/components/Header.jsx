@@ -10,6 +10,7 @@ const Header = ({ cameraCount, systemStatus, user, onLogout }) => {
             background: 'linear-gradient(135deg, rgba(21, 24, 35, 0.95) 0%, rgba(15, 17, 23, 0.98) 100%)',
             backdropFilter: 'blur(20px)',
             padding: '1rem 1.5rem',
+            paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))',
             borderBottom: '1px solid rgba(99, 102, 241, 0.2)',
             display: 'flex',
             alignItems: 'center',
@@ -49,11 +50,11 @@ const Header = ({ cameraCount, systemStatus, user, onLogout }) => {
                 </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                {/* User Info */}
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                {/* User Info - Compact on mobile */}
                 {user && (
                     <div style={{
-                        padding: '0.5rem 1rem',
+                        padding: '0.25rem 0.5rem',
                         background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0.05) 100%)',
                         borderRadius: '2rem',
                         border: '1px solid rgba(99, 102, 241, 0.3)',
@@ -62,8 +63,8 @@ const Header = ({ cameraCount, systemStatus, user, onLogout }) => {
                         gap: '0.5rem'
                     }}>
                         <div style={{
-                            width: '28px',
-                            height: '28px',
+                            width: '24px',
+                            height: '24px',
                             borderRadius: '50%',
                             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                             display: 'flex',
@@ -71,18 +72,13 @@ const Header = ({ cameraCount, systemStatus, user, onLogout }) => {
                             justifyContent: 'center',
                             color: 'white',
                             fontWeight: '600',
-                            fontSize: '0.75rem'
+                            fontSize: '0.65rem'
                         }}>
                             {user.username.charAt(0).toUpperCase()}
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: '0.875rem', fontWeight: '500', color: 'var(--text-main)' }}>
-                                {user.username}
-                            </span>
-                            <span style={{ fontSize: '0.625rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                {user.role}
-                            </span>
-                        </div>
+                        <span style={{ fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-main)', display: window.innerWidth <= 768 ? 'none' : 'block' }}>
+                            {user.username}
+                        </span>
                     </div>
                 )}
 
@@ -91,53 +87,35 @@ const Header = ({ cameraCount, systemStatus, user, onLogout }) => {
                     <button
                         onClick={onLogout}
                         style={{
-                            padding: '0.5rem 1rem',
-                            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%)',
+                            padding: '0.4rem 0.8rem',
+                            background: 'rgba(239, 68, 68, 0.1)',
                             color: 'var(--danger)',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            border: '1px solid rgba(239, 68, 68, 0.2)',
                             borderRadius: '2rem',
-                            fontSize: '0.75rem',
+                            fontSize: '0.7rem',
                             fontWeight: '600',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                            e.target.style.background = 'linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(239, 68, 68, 0.15) 100%)';
-                            e.target.style.transform = 'translateY(-2px)';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.target.style.background = 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%)';
-                            e.target.style.transform = 'translateY(0)';
+                            cursor: 'pointer'
                         }}
                     >
-                        Logout
+                        {window.innerWidth <= 768 ? 'Exit' : 'Logout'}
                     </button>
                 )}
 
                 {/* System Status */}
                 <div style={{
-                    padding: '0.5rem 1rem',
-                    background: isOnline
-                        ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.05) 100%)'
-                        : 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%)',
+                    padding: '0.4rem 0.8rem',
+                    background: isOnline ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
                     color: isOnline ? 'var(--success)' : 'var(--danger)',
                     borderRadius: '2rem',
-                    fontSize: '0.75rem',
-                    fontWeight: '600',
+                    fontSize: '0.65rem',
+                    fontWeight: '700',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.5rem',
-                    border: `1px solid ${isOnline ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-                    boxShadow: `0 0 15px ${isOnline ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+                    gap: '0.3rem',
+                    border: `1px solid ${isOnline ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
                 }}>
-                    <div style={{
-                        width: '6px',
-                        height: '6px',
-                        borderRadius: '50%',
-                        background: 'currentColor',
-                        boxShadow: '0 0 8px currentColor'
-                    }} />
-                    {isOnline ? 'SYSTEM ONLINE' : 'SYSTEM OFFLINE'}
+                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'currentColor' }} />
+                    {isOnline ? 'LIVE' : 'OFFLINE'}
                 </div>
             </div>
         </header>
