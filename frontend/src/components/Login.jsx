@@ -50,7 +50,7 @@ const Login = () => {
                         WebkitTextFillColor: 'transparent',
                         marginBottom: '0.5rem'
                     }}>
-                        AI Security System
+                        Safe Security Camera Dashboard
                     </h1>
                     <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
                         Sign in to access the dashboard

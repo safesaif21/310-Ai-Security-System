@@ -6,7 +6,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3000:80"
+      # Maps host port 3000 to container port 80 (Nginx default)
+      # 0.0.0.0 ensures it is accessible from any device on the network
+      - "0.0.0.0:3000:80"
     env_file:
       - .env.docker
     restart: always

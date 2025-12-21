@@ -20,13 +20,16 @@ const Header = ({ cameraCount, systemStatus, user, onLogout }) => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <div style={{
                     background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0.05) 100%)',
-                    padding: '0.5rem',
-                    borderRadius: '0.5rem',
-                    color: 'var(--primary)',
+                    padding: '0.25rem',
+                    borderRadius: '0.6rem',
                     boxShadow: '0 0 20px rgba(99, 102, 241, 0.2)',
-                    border: '1px solid rgba(99, 102, 241, 0.3)'
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden'
                 }}>
-                    <Shield size={24} />
+                    <img src="/logo_t.png" alt="Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
                 </div>
                 <div>
                     <h1 style={{
@@ -35,7 +38,7 @@ const Header = ({ cameraCount, systemStatus, user, onLogout }) => {
                         color: 'var(--text-main)',
                         letterSpacing: '-0.025em'
                     }}>
-                        Safe Security System
+                        Safe Security Camera Dashboard
                     </h1>
                     <div style={{
                         fontSize: '0.75rem',

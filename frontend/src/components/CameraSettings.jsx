@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, RotateCcw } from 'lucide-react';
+import api from '../utils/api';
 
 const CameraSettings = ({ camera, onClose }) => {
     const [settings, setSettings] = useState({
@@ -17,8 +18,7 @@ const CameraSettings = ({ camera, onClose }) => {
 
     const fetchSettings = async () => {
         try {
-            const res = await fetch(`http://localhost:8000/camera/${camera.id}/settings`);
-            const data = await res.json();
+            const data = await api.get(`/camera/${camera.id}/settings`);
             setSettings(data);
             setLoading(false);
         } catch (error) {
@@ -34,11 +34,7 @@ const CameraSettings = ({ camera, onClose }) => {
     const handleSave = async () => {
         setSaving(true);
         try {
-            await fetch(`http://localhost:8000/camera/${camera.id}/settings`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(settings)
-            });
+            await api.post(`/camera/${camera.id}/settings`, settings);
             onClose();
         } catch (error) {
             console.error('Error saving settings:', error);

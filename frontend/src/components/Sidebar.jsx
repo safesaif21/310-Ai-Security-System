@@ -1,5 +1,6 @@
 import React from 'react';
 import { Target, AlertTriangle, ShieldAlert, Users, Activity, RefreshCw } from 'lucide-react';
+import api from '../utils/api';
 
 const Sidebar = ({
     models,
@@ -10,20 +11,15 @@ const Sidebar = ({
     stats,
     systemStatus
 }) => {
-    const BACKEND_URL = 'http://localhost:8000';
-
     const loadModel = async (modelName) => {
         if (!modelName) return;
         try {
-            const response = await fetch(`${BACKEND_URL}/model/load?model_name=${modelName}`, {
-                method: 'POST'
-            });
-            const data = await response.json();
+            const data = await api.post(`/model/load?model_name=${encodeURIComponent(modelName)}`);
             if (data.success) {
                 setCurrentModel(modelName);
                 setDetectionEnabled(true);
             } else {
-                alert(`Error: ${data.message}`);
+                alert(`Error: ${data.message || 'Unknown error'}`);
             }
         } catch (error) {
             console.error('Error loading model:', error);
@@ -38,10 +34,7 @@ const Sidebar = ({
         }
         try {
             const newState = !detectionEnabled;
-            const response = await fetch(`${BACKEND_URL}/detection/toggle?enabled=${newState}`, {
-                method: 'POST'
-            });
-            const data = await response.json();
+            const data = await api.post(`/detection/toggle?enabled=${newState}`);
             if (data.success) {
                 setDetectionEnabled(newState);
             }

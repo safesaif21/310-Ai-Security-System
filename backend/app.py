@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Dict
 
 import numpy as np
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from ultralytics import YOLO
@@ -180,10 +180,19 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_credentials=True,
+    allow_credentials=False, # Set to False to allow wildcard origins for network-wide access
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def add_pna_header(request: Request, call_next):
+    """Handle Private Network Access (PNA) preflight requests"""
+    if request.method == "OPTIONS" and "access-control-request-private-network" in request.headers:
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Private-Network"] = "true"
+        return response
+    return await call_next(request)
 
 # Include API routers
 app.include_router(auth.router)

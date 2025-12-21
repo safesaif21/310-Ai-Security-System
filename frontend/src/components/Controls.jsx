@@ -1,6 +1,7 @@
 import React from 'react';
 import { Play, Square, Video, VideoOff } from 'lucide-react';
 import LogsDropdown from './LogsDropdown';
+import api from '../utils/api';
 
 const Controls = ({ camerasActive, setCamerasActive, detectionEnabled, recordingEnabled, setRecordingEnabled, logs }) => {
     const toggleCameras = () => {
@@ -10,10 +11,7 @@ const Controls = ({ camerasActive, setCamerasActive, detectionEnabled, recording
     const toggleRecording = async () => {
         try {
             const newState = !recordingEnabled;
-            const response = await fetch(`http://localhost:8000/recording/toggle?enabled=${newState}`, {
-                method: 'POST'
-            });
-            const data = await response.json();
+            const data = await api.post(`/recording/toggle?enabled=${newState}`);
             if (data.success) {
                 setRecordingEnabled(newState);
             }

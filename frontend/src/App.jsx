@@ -8,6 +8,7 @@ import CameraGrid from './components/CameraGrid';
 import Navigation from './components/Navigation';
 import RecordingsView from './components/RecordingsView';
 import LogsView from './components/LogsView';
+import api from './utils/api';
 import './index.css';
 
 function Dashboard() {
@@ -49,8 +50,7 @@ function Dashboard() {
     const fetchData = async () => {
       try {
         // Fetch cameras
-        const camerasRes = await fetch(`${BACKEND_URL}/cameras`);
-        const camerasData = await camerasRes.json();
+        const camerasData = await api.get('/cameras');
         const camerasWithUrl = camerasData.cameras.map(cam => ({
           ...cam,
           url: `${BACKEND_URL}${cam.url}`
@@ -64,8 +64,7 @@ function Dashboard() {
 
       try {
         // Fetch models
-        const modelsRes = await fetch(`${BACKEND_URL}/models`);
-        const modelsData = await modelsRes.json();
+        const modelsData = await api.get('/models');
         setModels(modelsData.models);
         setCurrentModel(modelsData.current_model);
         setDetectionEnabled(modelsData.detection_enabled);
@@ -83,8 +82,7 @@ function Dashboard() {
     if (detectionEnabled && camerasActive) {
       interval = setInterval(async () => {
         try {
-          const response = await fetch(`${BACKEND_URL}/stats`);
-          const data = await response.json();
+          const data = await api.get('/stats');
           setStats({
             people_count: data.people_count,
             weapon_detected: data.weapon_detected,
@@ -108,8 +106,7 @@ function Dashboard() {
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const response = await fetch(`${BACKEND_URL}/logs`);
-        const data = await response.json();
+        const data = await api.get('/logs');
         setLogs(data.logs);
       } catch (error) {
         console.error('Error fetching logs:', error);
