@@ -77,6 +77,9 @@ uvicorn backend.app:app --reload
 
 The backend will start on `http://localhost:8000`
 
+> [!IMPORTANT]
+> For network-wide access (e.g., viewing from your phone), ensure your `.env` file has `ALLOWED_ORIGINS=*` or includes your computer's LAN IP.
+
 ---
 
 ## 6. Run the Frontend
@@ -89,6 +92,34 @@ npm run dev
 ```
 
 The frontend will start on `http://localhost:5173` (or another port if 5173 is busy)
+
+---
+
+## 7. Docker Deployment (Frontend)
+
+For a more stable, production-ready frontend that is easily accessible from multiple devices on your local network:
+
+1.  **Configure environment**: Create or update `.env.docker` with your backend's LAN IP:
+    ```env
+    VITE_API_URL=http://192.168.1.XX:8000
+    ```
+2.  **Build and Run**:
+    ```bash
+    docker-compose up -d --build
+    ```
+3.  **Access**: Open `http://<your-lan-ip>:3000` on any device (laptop, phone, tablet).
+
+---
+
+## 8. Mobile App Optimization (iOS/Android)
+
+The dashboard is a Progressive Web App (PWA). To install it on your iPhone:
+
+1.  Open the dashboard in **Safari**.
+2.  Tap the **Share** button.
+3.  Scroll down and tap **Add to Home Screen**.
+
+The app will now appear on your home screen with a custom **Safe Security** icon and run in standalone mode (no browser bars).
 
 ---
 
@@ -125,10 +156,16 @@ The system calculates threat levels based on:
 - **Dynamic FPS**: Automatically detects and matches the camera's native frame rate for perfect synchronization.
 - **Browser Playback**: Uses stabilized **H.264 (avc1)** encoding for instant playback in modern web browsers without external codecs.
 
-### 📱 Improved for Mobile
+### 📱 Premium Mobile Experience
 - **Responsive Navigation**: Automatically pivots from a multi-column desktop grid to a single-column layout on smartphones.
-- **Safe Area Awareness**: Fully supports notched screens and home indicators for a seamless edge-to-edge experience.
-- **UI Compactness**: Navigation and headers shrink on mobile to maximize screen space for camera feeds.
+- **PWA Ready**: Supports "Add to Home Screen" with custom high-quality icons and splash screens.
+- **Standalone Mode**: Runs as a full-screen app without browser address bars for a native feel.
+- **Safe Area Support**: Fully compatible with iPhone notches and modern edge-to-edge displays.
+
+### 🐳 Network & Security
+- **Dockerized Frontend**: Multi-stage Nginx build for high-performance delivery.
+- **Network-Wide Access**: Optimized for local network IPs and cross-device communication.
+- **PNA Support**: Built-in middleware to bypass "Private Network Access" security blocks on mobile Chrome.
 
 ---
 
@@ -156,6 +193,10 @@ The system calculates threat levels based on:
 │       └── video_utils.py          # Frame drawing & overlay utilities
 │
 ├── frontend/
+│   ├── public/
+│   │   ├── logo_t.png              # Transparent branding logo
+│   │   ├── logo.png                # High-res PWA/iOS icon
+│   │   └── manifest.json           # Web app manifest for PWA
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── CameraCard.jsx      # Feed display with fullscreen support
@@ -166,11 +207,16 @@ The system calculates threat levels based on:
 │   │   │   ├── LogsView.jsx        # Colored console with viewport fixes
 │   │   │   └── Sidebar.jsx         # Controls, threat level, and statistics
 │   │   │
+│   │   ├── contexts/
+│   │   │   └── AuthContext.jsx     # Authentication state management
+│   │   ├── utils/
+│   │   │   └── api.js              # Centralized API logic with Auth headers
 │   │   ├── App.jsx                 # Global state & window resize management
 │   │   ├── index.css               # Premium dark-mode glassmorphism styles
 │   │   └── main.jsx                # React root
 │   │
-│   ├── index.html                  # Viewport-fit cover support
+│   ├── Dockerfile                  # Multi-stage production build
+│   ├── index.html                  # Viewport-fit & iOS metadata
 │   └── vite.config.js              # Build & Dev configuration
 │
 ├── recordings/
@@ -195,6 +241,8 @@ The system calculates threat levels based on:
 ├── diagrams/                       # Documentation diagrams
 │   └── pipeline.png                # System pipeline diagram
 │
+├── .env.docker                     # Environment for Docker deployment
+├── docker-compose.yml              # Frontend container orchestration
 ├── requirements.txt                # Python dependencies
 ├── train_yolo_model_pipeline.py    # YOLO training pipeline
 └── README.md                       # This file
