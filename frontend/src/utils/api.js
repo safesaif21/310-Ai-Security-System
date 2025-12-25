@@ -2,7 +2,7 @@
  * API utility functions with automatic authentication
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
+const API_BASE_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8040`;
 
 /**
  * Get auth token from localStorage

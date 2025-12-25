@@ -55,8 +55,8 @@ if __name__ == "__main__":
     print()
     
     create_new_user(
-        username="safesaif_21",
-        email="safesaif_21@gmail.com",
-        password="password",
-        role="user"
+        username="admin",
+        email="admin@example.com",
+        password="admin123",
+        role="admin"
     )

@@ -41,9 +41,9 @@ function Dashboard() {
 
   // Determine Backend URL dynamically
   // If loaded from localhost, use localhost. If network IP, use compatible IP.
-  // Port 8000 is hardcoded for backend.
-  const BACKEND_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
-  // const BACKEND_URL = 'http://localhost:8000';
+  // Port 8040 is hardcoded for backend.
+  const BACKEND_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8040`;
+  // const BACKEND_URL = 'http://localhost:8040';
 
   // Fetch initial data
   useEffect(() => {

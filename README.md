@@ -75,7 +75,7 @@ Or alternatively:
 uvicorn backend.app:app --reload
 ```
 
-The backend will start on `http://localhost:8000`
+The backend will start on `http://localhost:8040`
 
 > [!IMPORTANT]
 > For network-wide access (e.g., viewing from your phone), ensure your `.env` file has `ALLOWED_ORIGINS=*` or includes your computer's LAN IP.
@@ -101,7 +101,7 @@ For a more stable, production-ready frontend that is easily accessible from mult
 
 1.  **Configure environment**: Create or update `.env.docker` with your backend's LAN IP:
     ```env
-    VITE_API_URL=http://192.168.1.XX:8000
+    VITE_API_URL=http://192.168.1.XX:8040
     ```
 2.  **Build and Run**:
     ```bash
