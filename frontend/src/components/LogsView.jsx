@@ -5,24 +5,61 @@ import api from '../utils/api';
 const LogsView = () => {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [availableDates, setAvailableDates] = useState([]);
+    const [selectedDate, setSelectedDate] = useState('Live'); // 'Live' or 'YYYY-MM-DD'
 
+    // Fetch available log dates on mount
     useEffect(() => {
-        const fetchLogs = async () => {
-            setLoading(true);
+        const fetchDates = async () => {
+            try {
+                const data = await api.dvr.get('/logs/dates');
+                setAvailableDates(data.dates || []);
+            } catch (err) {
+                console.error("Error fetching log dates:", err);
+            }
+        };
+        fetchDates();
+    }, []);
+
+    // Effect for real-time logs (Live mode)
+    useEffect(() => {
+        if (selectedDate !== 'Live') return;
+
+        const fetchLiveLogs = async () => {
+            if (logs.length === 0) setLoading(true);
             try {
                 const data = await api.dvr.get('/logs');
                 setLogs(data.logs || []);
             } catch (err) {
-                console.error("Error loading logs:", err);
+                console.error("Error loading live logs:", err);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchLogs();
-        const interval = setInterval(fetchLogs, 2000);
+        fetchLiveLogs();
+        const interval = setInterval(fetchLiveLogs, 2000);
         return () => clearInterval(interval);
-    }, []);
+    }, [selectedDate, logs.length]);
+
+    // Effect for historical logs
+    useEffect(() => {
+        if (selectedDate === 'Live') return;
+
+        const fetchHistoricalLogs = async () => {
+            setLoading(true);
+            try {
+                const data = await api.dvr.get(`/logs/by-date/${selectedDate}`);
+                setLogs(data.logs || []);
+            } catch (err) {
+                console.error("Error loading historical logs:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchHistoricalLogs();
+    }, [selectedDate]);
 
     const getLogColor = (type) => {
         switch (type?.toLowerCase()) {
@@ -43,10 +80,34 @@ const LogsView = () => {
                 borderRadius: '12px',
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center'
+                alignItems: 'center',
+                border: '1px solid rgba(255,255,255,0.05)'
             }}>
-                <span style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>Live System Events</span>
-                <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>Updates every 2s</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                    <span style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>System Activity</span>
+                    <select
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        style={{
+                            background: 'rgba(255,255,255,0.05)',
+                            color: 'white',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '6px',
+                            padding: '0.4rem 0.8rem',
+                            fontSize: '0.85rem',
+                            outline: 'none',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <option value="Live">Live Stream</option>
+                        {availableDates.map(date => (
+                            <option key={date} value={date}>{date}.txt</option>
+                        ))}
+                    </select>
+                </div>
+                <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>
+                    {selectedDate === 'Live' ? 'Updating every 2s' : `${logs.length} archived events`}
+                </span>
             </div>
 
             {/* Log Content */}

@@ -8,7 +8,6 @@ import CameraGrid from './components/CameraGrid';
 import Navigation from './components/Navigation';
 import RecordingsView from './components/RecordingsView';
 import LogsView from './components/LogsView';
-import Controls from './components/Controls';
 import api from './utils/api';
 import './index.css';
 
@@ -130,7 +129,7 @@ function Dashboard() {
       }
     };
 
-    const interval = setInterval(checkStatus, 2000);
+    const interval = setInterval(checkStatus, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -154,21 +153,11 @@ function Dashboard() {
         <Navigation currentView={currentView} onViewChange={setCurrentView} />
 
         {currentView === 'interface' && (
-          <>
-            <Controls
-              camerasActive={camerasActive}
-              setCamerasActive={setCamerasActive}
-              detectionEnabled={detectionEnabled}
-              recordingEnabled={recordingEnabled}
-              setRecordingEnabled={setRecordingEnabled}
-              logs={logs}
-            />
-            <CameraGrid
-              cameras={cameras}
-              camerasActive={camerasActive}
-              isSmartphone={isSmartphone}
-            />
-          </>
+          <CameraGrid
+            cameras={cameras}
+            camerasActive={camerasActive}
+            isSmartphone={isSmartphone}
+          />
         )}
 
         {currentView === 'recordings' && (

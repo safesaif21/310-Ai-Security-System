@@ -11,14 +11,11 @@ from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-import subprocess
-
 class RecordingManager:
-    def __init__(self, log_manager, base_folder: str = "recordings", max_size_gb: float = 1.0, rotation_seconds: int = 60):
+    def __init__(self, log_manager, base_folder: str = "recordings", max_size_gb: float = 1.0):
         self.base_folder = Path(base_folder)
         self.max_size_bytes = max_size_gb * 1024 * 1024 * 1024
-        self.rotation_seconds = rotation_seconds
-        self.writers: Dict[int, subprocess.Popen] = {}
+        self.writers: Dict[int, cv2.VideoWriter] = {}
         self.start_times: Dict[int, float] = {}
         self.current_files: Dict[int, Path] = {}
         self.camera_fps: Dict[int, float] = {}
@@ -58,17 +55,15 @@ class RecordingManager:
     def start_recording(self, camera_id: int, width: int, height: int, fps: float = 20.0):
         with self.lock:
             if camera_id not in self.recording_started or not self.recording_started[camera_id]:
-                # Force even dimensions for H.264
+                # Downscale to 360p (nHD) to drastically reduce file size (~640x360)
                 target_height = min(height, 360)
-                if target_height % 2 != 0: target_height -= 1
-                
                 scale = target_height / height
                 target_width = int(width * scale)
-                if target_width % 2 != 0: target_width -= 1
                 
                 self.log_manager.add_log(f"Recording started for camera {camera_id} at {fps:.1f} FPS ({width}x{height} -> {target_width}x{target_height})", "info")
                 self.recording_started[camera_id] = True
                 self.camera_fps[camera_id] = fps
+                # Store target dimensions for this camera
                 if not hasattr(self, 'camera_dims'): self.camera_dims = {}
                 self.camera_dims[camera_id] = (target_width, target_height)
                 
@@ -79,49 +74,36 @@ class RecordingManager:
         try:
             if camera_id in self.writers:
                 try:
-                    self.writers[camera_id].stdin.close()
-                    self.writers[camera_id].wait()
+                    self.writers[camera_id].release()
                 except Exception as e:
-                    logger.error(f"Error closing previous ffmpeg process: {e}")
+                    logger.error(f"Error releasing previous writer: {e}")
             
             folder = self._get_camera_folder(camera_id)
             timestamp = datetime.now().strftime("%Y%m%d_%H_%M_%S")
             filename = folder / f"rec_{timestamp}.mp4"
             
-            # Using FFmpeg pipe for reliable H.264 encoding in Docker
-            command = [
-                'ffmpeg',
-                '-y',
-                '-f', 'rawvideo',
-                '-vcodec', 'rawvideo',
-                '-s', f'{width}x{height}',
-                '-pix_fmt', 'bgr24',
-                '-r', str(fps),
-                '-i', '-',
-                '-c:v', 'libx264',
-                '-pix_fmt', 'yuv420p',
-                '-preset', 'ultrafast',
-                '-f', 'mp4',
-                str(filename)
-            ]
+            # Use 'avc1' (H.264) for maximum browser compatibility
+            fourcc = cv2.VideoWriter_fourcc(*'avc1')
+            writer = cv2.VideoWriter(str(filename), fourcc, fps, (width, height))
             
-            # Redirect stderr to a log file instead of a pipe to prevent hanging
-            ffmpeg_log = folder / f"rec_{timestamp}.log"
-            with open(ffmpeg_log, "w") as f_log:
-                process = subprocess.Popen(
-                    command, 
-                    stdin=subprocess.PIPE, 
-                    stderr=f_log,
-                    bufsize=0
-                )
+            # Fallback to mp4v if avc1 fails
+            if not writer.isOpened():
+                logger.warning(f"avc1 codec failed, falling back to mp4v for camera {camera_id}")
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                writer = cv2.VideoWriter(str(filename), fourcc, fps, (width, height))
             
-            self.writers[camera_id] = process
+            if not writer.isOpened():
+                logger.error(f"Failed to create video writer for camera {camera_id}")
+                return
+            
+            self.writers[camera_id] = writer
             self.start_times[camera_id] = time.time()
             self.current_files[camera_id] = filename
             
+            
+
+            
             self._check_storage(camera_id)
-            self.log_manager.add_log(f"Recording file created: {filename.name} ({width}x{height})", "info")
-            logger.info(f"FFmpeg process started for cam {camera_id}, pid: {process.pid}")
         except Exception as e:
             logger.error(f"Error starting new recording file for camera {camera_id}: {e}")
 
@@ -131,32 +113,31 @@ class RecordingManager:
                 return
 
             try:
-                # auto-rotate files
-                if time.time() - self.start_times[camera_id] >= self.rotation_seconds:
+                if time.time() - self.start_times[camera_id] >= 60:
                     h, w = frame.shape[:2]
                     fps = self.camera_fps.get(camera_id, 30.0)
+                    # Use stored target dims for new file creation
                     target_w, target_h = self.camera_dims.get(camera_id, (w, h))
                     self._start_new_file(camera_id, target_w, target_h, fps)
                 
-                if camera_id in self.writers:
-                    target_w, target_h = self.camera_dims.get(camera_id, (None, None))
+                if camera_id in self.writers and self.writers[camera_id].isOpened():
+                    target_w, target_h = self.camera_dims.get(camera_id, None)
                     if target_w and target_h:
                         frame = cv2.resize(frame, (target_w, target_h))
-                    
-                    # Write frame to ffmpeg stdin
-                    self.writers[camera_id].stdin.write(frame.tobytes())
+                    self.writers[camera_id].write(frame)
             except Exception as e:
-                logger.error(f"Error writing frame to recording: {e}")
+                logger.error(f"Error writing frame to recording for camera {camera_id}: {e}")
 
     def stop_recording(self, camera_id: int):
+        """Public method to stop recording for a camera"""
         with self.lock:
             self._stop_recording_internal(camera_id)
 
     def _stop_recording_internal(self, camera_id: int):
+        """Internal method to stop recording (assumes lock is held)"""
         try:
             if camera_id in self.writers:
-                self.writers[camera_id].stdin.close()
-                self.writers[camera_id].wait()
+                self.writers[camera_id].release()
                 del self.writers[camera_id]
             if camera_id in self.start_times:
                 del self.start_times[camera_id]

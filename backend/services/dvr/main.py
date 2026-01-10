@@ -29,12 +29,7 @@ ANALYSIS_SERVICE_URL = os.getenv("ANALYSIS_SERVICE_URL", "http://analysis-servic
 
 # Initialize managers
 log_manager = LogManager(settings.logs_folder)
-recording_manager = RecordingManager(
-    log_manager, 
-    settings.recordings_folder, 
-    settings.recording_size_limit_gb,
-    settings.recording_rotation_seconds
-)
+recording_manager = RecordingManager(log_manager, settings.recordings_folder, settings.recording_size_limit_gb)
 
 stop_events = {}
 recording_threads = {}
@@ -49,7 +44,7 @@ app = FastAPI(title="DVR & Log Service")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -70,13 +65,11 @@ def recording_loop(camera_id: int):
     frame_interval = 1.0 / TARGET_FPS
     last_frame_write = time.time()
     latest_frame = None
-    frame_count = 0
     
     while not stop_events.get(camera_id, threading.Event()).is_set():
         try:
             if not cap.isOpened():
-                logger.error(f"DVR: Failed to open stream for camera {camera_id}: {stream_url}")
-                time.sleep(5)
+                time.sleep(2)
                 cap = cv2.VideoCapture(stream_url)
                 continue
 
@@ -84,20 +77,11 @@ def recording_loop(camera_id: int):
             success, frame = cap.read()
             if success:
                 latest_frame = frame
-                # Periodically log that we are receiving frames
-                if frame_count % 100 == 0:
-                    logger.info(f"DVR: Received 100 frames from camera {camera_id}")
-                frame_count += 1
-            else:
-                logger.warning(f"DVR: Empty frame from camera {camera_id}")
-                time.sleep(0.1)
-                continue
 
             # Ensure recording is initialized
             if not recording_manager.recording_started.get(camera_id):
                 if latest_frame is not None:
                     h, w = latest_frame.shape[:2]
-                    logger.info(f"DVR: Initializing recording for camera {camera_id} ({w}x{h})")
                     recording_manager.start_recording(camera_id, w, h, TARGET_FPS)
                     last_frame_write = time.time()
                 else:
@@ -188,21 +172,10 @@ async def list_recordings():
     base_path = Path(settings.recordings_folder)
     if not base_path.exists(): return {"recordings": {}}
     
-    now = time.time()
     for cam_dir in base_path.iterdir():
         if cam_dir.is_dir():
             cam_id = cam_dir.name.replace("camera_", "")
-            # Only include files that are finished (not modified in the last 15 seconds)
-            # and are larger than a few KB
-            files = []
-            for f in cam_dir.glob("*.mp4"):
-                mtime = os.path.getmtime(f)
-                size = os.path.getsize(f)
-                if (now - mtime > 5) and (size > 1024 * 5): # > 5KB and older than 5s
-                    files.append(f)
-            
-            # Sort by time descending
-            files = sorted(files, key=os.path.getmtime, reverse=True)
+            files = sorted(cam_dir.glob("*.mp4"), key=os.path.getmtime, reverse=True)
             results[cam_id] = [f.name for f in files]
             
     return {"recordings": results}
