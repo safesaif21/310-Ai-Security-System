@@ -105,16 +105,23 @@ class RecordingManager:
                 str(filename)
             ]
             
-            process = subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+            # Redirect stderr to a log file instead of a pipe to prevent hanging
+            ffmpeg_log = folder / f"rec_{timestamp}.log"
+            with open(ffmpeg_log, "w") as f_log:
+                process = subprocess.Popen(
+                    command, 
+                    stdin=subprocess.PIPE, 
+                    stderr=f_log,
+                    bufsize=0
+                )
             
             self.writers[camera_id] = process
             self.start_times[camera_id] = time.time()
             self.current_files[camera_id] = filename
             
             self._check_storage(camera_id)
-            self.log_manager.add_log(f"Started new recording file for camera {camera_id}", "info")
-        except Exception as e:
-            logger.error(f"Error starting new recording file for camera {camera_id}: {e}")
+            self.log_manager.add_log(f"Recording file created: {filename.name} ({width}x{height})", "info")
+            logger.info(f"FFmpeg process started for cam {camera_id}, pid: {process.pid}")
 
     def write_frame(self, camera_id: int, frame):
         with self.lock:
@@ -133,6 +140,27 @@ class RecordingManager:
                     target_w, target_h = self.camera_dims.get(camera_id, (None, None))
                     if target_w and target_h:
                         frame = cv2.resize(frame, (target_w, target_h))
+                    
+                    # Add security-style timestamp overlay
+                    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    label = f"SAFE-CAM {camera_id} | {timestamp_str}"
+                    font = cv2.FONT_HERSHEY_DUPLEX
+                    font_scale = 0.5
+                    thickness = 1
+                    
+                    # Position: Top-Left
+                    pos = (15, 30)
+                    
+                    # Measure text for background rectangle
+                    (w_text, h_text), baseline = cv2.getTextSize(label, font, font_scale, thickness)
+                    
+                    # Draw semi-transparent background for text
+                    overlay = frame.copy()
+                    cv2.rectangle(overlay, (pos[0]-5, pos[1]-h_text-10), (pos[0]+w_text+10, pos[1]+10), (0, 0, 0), -1)
+                    cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
+                    
+                    # Draw the text
+                    cv2.putText(frame, label, pos, font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
                     
                     # Write frame to ffmpeg stdin
                     self.writers[camera_id].stdin.write(frame.tobytes())

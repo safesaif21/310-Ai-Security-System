@@ -74,7 +74,8 @@ def recording_loop(camera_id: int):
     while not stop_events.get(camera_id, threading.Event()).is_set():
         try:
             if not cap.isOpened():
-                time.sleep(2)
+                logger.error(f"DVR: Failed to open stream for camera {camera_id}: {stream_url}")
+                time.sleep(5)
                 cap = cv2.VideoCapture(stream_url)
                 continue
 
@@ -82,11 +83,20 @@ def recording_loop(camera_id: int):
             success, frame = cap.read()
             if success:
                 latest_frame = frame
+                # Periodically log that we are receiving frames
+                if frame_count % 100 == 0:
+                    logger.info(f"DVR: Received 100 frames from camera {camera_id}")
+                frame_count += 1
+            else:
+                logger.warning(f"DVR: Empty frame from camera {camera_id}")
+                time.sleep(0.1)
+                continue
 
             # Ensure recording is initialized
             if not recording_manager.recording_started.get(camera_id):
                 if latest_frame is not None:
                     h, w = latest_frame.shape[:2]
+                    logger.info(f"DVR: Initializing recording for camera {camera_id} ({w}x{h})")
                     recording_manager.start_recording(camera_id, w, h, TARGET_FPS)
                     last_frame_write = time.time()
                 else:
