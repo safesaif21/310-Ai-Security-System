@@ -1,0 +1,13 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+fastapi==0.121.2
+uvicorn==0.38.0
+ultralytics==8.3.229
+ultralytics-thop==2.0.18
+opencv-python==4.10.0.84
+numpy==1.26.4
+requests==2.32.5
+pydantic==2.12.4
+pydantic-settings==2.7.1
+python-dotenv==1.0.1
+torch
+torchvision

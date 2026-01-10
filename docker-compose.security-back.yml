@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  dvr-service:
+    build:
+      context: .
+      dockerfile: backend/services/dvr/Dockerfile
+    container_name: security_dvr
+    restart: always
+    ports:
+      - "8043:8043"
+    env_file:
+      - .env.docker
+    environment:
+      - ANALYSIS_SERVICE_URL=http://${FRONT_SERVER_IP}:8042
+      - TZ=America/Los_Angeles
+      - RECORDING_SIZE_LIMIT_GB=10.0
+      - RECORDING_ROTATION_SECONDS=180
+    volumes:
+      - ./recordings:/app/recordings
+      - ./logs:/app/logs
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge

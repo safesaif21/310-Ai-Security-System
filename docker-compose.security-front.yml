@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  auth-service:
+    build:
+      context: .
+      dockerfile: backend/services/auth/Dockerfile
+    container_name: security_auth
+    restart: always
+    ports:
+      - "8040:8040"
+    env_file:
+      - .env.docker
+    environment:
+      - LOG_SERVICE_URL=http://${BACK_SERVER_IP}:8043
+      - TZ=America/Los_Angeles
+    networks:
+      - app_network
+
+  analysis-service:
+    build:
+      context: .
+      dockerfile: backend/services/analysis/Dockerfile
+    container_name: security_yolo_analysis
+    restart: always
+    ports:
+      - "8042:8042"
+    env_file:
+      - .env.docker
+    environment:
+      - CAMERA_SERVICE_URL=http://${BACK_SERVER_IP}:8041
+      - LOG_SERVICE_URL=http://${BACK_SERVER_IP}:8043
+      - TZ=America/Los_Angeles
+    volumes:
+      - ./yolo_models:/app/yolo_models
+    networks:
+      - app_network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        - VITE_AUTH_API_URL=http://${FRONT_SERVER_IP}:8040
+        - VITE_ANALYSIS_API_URL=http://${FRONT_SERVER_IP}:8042
+        - VITE_DVR_API_URL=http://${BACK_SERVER_IP}:8043
+        - VITE_CAMERA_API_URL=http://${BACK_SERVER_IP}:8041
+    container_name: security_frontend
+    restart: always
+    ports:
+      - "80:80"
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge

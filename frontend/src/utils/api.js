@@ -1,8 +1,17 @@
 /**
- * API utility functions with automatic authentication
+ * API utility functions for the Microservices architecture
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8040`;
+const getBaseUrl = (port) => {
+    return `http://${window.location.hostname}:${port}`;
+};
+
+export const SERVICES = {
+    AUTH: import.meta.env.VITE_AUTH_API_URL || getBaseUrl(8040),
+    CAMERA: import.meta.env.VITE_CAMERA_API_URL || getBaseUrl(8041),
+    ANALYSIS: import.meta.env.VITE_ANALYSIS_API_URL || getBaseUrl(8042),
+    DVR: import.meta.env.VITE_DVR_API_URL || getBaseUrl(8043),
+};
 
 /**
  * Get auth token from localStorage
@@ -13,9 +22,8 @@ const getToken = () => {
 
 /**
  * Authenticated fetch wrapper
- * Automatically adds Authorization header if token exists
  */
-export const apiFetch = async (endpoint, options = {}) => {
+export const apiFetch = async (serviceBaseUrl, endpoint, options = {}) => {
     const token = getToken();
 
     const headers = {
@@ -23,7 +31,6 @@ export const apiFetch = async (endpoint, options = {}) => {
         ...options.headers,
     };
 
-    // Add auth token if available
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
@@ -34,10 +41,9 @@ export const apiFetch = async (endpoint, options = {}) => {
     };
 
     try {
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+        const response = await fetch(`${serviceBaseUrl}${endpoint}`, config);
 
-        // Handle 401 Unauthorized - redirect to login
-        if (response.status === 401) {
+        if (response.status === 401 && serviceBaseUrl === SERVICES.AUTH) {
             localStorage.removeItem('auth_token');
             localStorage.removeItem('user');
             window.location.href = '/';
@@ -46,55 +52,33 @@ export const apiFetch = async (endpoint, options = {}) => {
 
         return response;
     } catch (error) {
-        console.error('API fetch error:', error);
+        console.error(`API fetch error (${serviceBaseUrl}):`, error);
         throw error;
     }
 };
 
-/**
- * Helper for GET requests
- */
-export const apiGet = async (endpoint) => {
-    const response = await apiFetch(endpoint);
-    return response.json();
-};
-
-/**
- * Helper for POST requests
- */
-export const apiPost = async (endpoint, data) => {
-    const response = await apiFetch(endpoint, {
+const createHelper = (serviceBaseUrl) => ({
+    get: (endpoint) => apiFetch(serviceBaseUrl, endpoint).then(r => r.json()),
+    post: (endpoint, data) => apiFetch(serviceBaseUrl, endpoint, {
         method: 'POST',
-        body: JSON.stringify(data),
-    });
-    return response.json();
-};
-
-/**
- * Helper for PUT requests
- */
-export const apiPut = async (endpoint, data) => {
-    const response = await apiFetch(endpoint, {
+        body: data ? JSON.stringify(data) : undefined
+    }).then(r => r.json()),
+    put: (endpoint, data) => apiFetch(serviceBaseUrl, endpoint, {
         method: 'PUT',
-        body: JSON.stringify(data),
-    });
-    return response.json();
-};
+        body: data ? JSON.stringify(data) : undefined
+    }).then(r => r.json()),
+    delete: (endpoint) => apiFetch(serviceBaseUrl, endpoint, { method: 'DELETE' }).then(r => r.json()),
+});
 
-/**
- * Helper for DELETE requests
- */
-export const apiDelete = async (endpoint) => {
-    const response = await apiFetch(endpoint, {
-        method: 'DELETE',
-    });
-    return response.json();
-};
+export const authApi = createHelper(SERVICES.AUTH);
+export const cameraApi = createHelper(SERVICES.CAMERA);
+export const analysisApi = createHelper(SERVICES.ANALYSIS);
+export const dvrApi = createHelper(SERVICES.DVR);
 
 export default {
-    fetch: apiFetch,
-    get: apiGet,
-    post: apiPost,
-    put: apiPut,
-    delete: apiDelete,
+    auth: authApi,
+    camera: cameraApi,
+    analysis: analysisApi,
+    dvr: dvrApi,
+    SERVICES
 };

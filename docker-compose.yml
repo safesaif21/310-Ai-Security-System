@@ -1,14 +1,107 @@
 version: '3.8'
 
 services:
-  frontend:
+  # =========================================
+  # Node 1 Services (Main Server)
+  # =========================================
+
+  auth-service:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/services/auth/Dockerfile
+    container_name: security_auth
+    restart: always
     ports:
-      # Maps host port 3000 to container port 80 (Nginx default)
-      # 0.0.0.0 ensures it is accessible from any device on the network
-      - "0.0.0.0:3000:80"
+      - "8040:8040"
     env_file:
       - .env.docker
+    environment:
+      - LOG_SERVICE_URL=http://dvr-service:8043
+      - TZ=America/Los_Angeles
+    networks:
+      - app_network
+
+  analysis-service:
+    build:
+      context: .
+      dockerfile: backend/services/analysis/Dockerfile
+    container_name: security_yolo_analysis
     restart: always
+    ports:
+      - "8042:8042"
+    env_file:
+      - .env.docker
+    environment:
+      # Use host.docker.internal to talk to the Camera Service running natively on your PC
+      - CAMERA_SERVICE_URL=http://host.docker.internal:8041
+      - LOG_SERVICE_URL=http://dvr-service:8043
+      - TZ=America/Los_Angeles
+    volumes:
+      - ./yolo_models:/app/yolo_models
+    networks:
+      - app_network
+    depends_on:
+      - dvr-service
+
+  dvr-service:
+    build:
+      context: .
+      dockerfile: backend/services/dvr/Dockerfile
+    container_name: security_dvr
+    restart: always
+    ports:
+      - "8043:8043"
+    env_file:
+      - .env.docker
+    environment:
+      - TZ=America/Los_Angeles
+      - RECORDING_SIZE_LIMIT_GB=10.0
+      - RECORDING_ROTATION_SECONDS=180
+    volumes:
+      - ./recordings:/app/recordings
+      - ./logs:/app/logs
+    networks:
+      - app_network
+
+  # camera-service:
+  #   build:
+  #     context: .
+  #     dockerfile: backend/services/camera/Dockerfile
+  #   container_name: security_camera
+  #   restart: always
+  #   ports:
+  #     - "8041:8041"
+  #   env_file:
+  #     - .env.docker
+  #   devices:
+  #     # Pass through all video devices
+  #     # On Windows Docker, this might not work directly for USB cams (requires workaround or WSL2 USB)
+  #     # On Linux/RasPi, this is standard.
+  #     - /dev/video0:/dev/video0
+  #   volumes:
+  #     - ./recordings:/app/recordings
+  #     - ./logs:/app/logs
+  #   networks:
+  #     - app_network
+  # =========================================
+  # Frontend
+  # =========================================
+  frontend:
+    build: ./frontend
+    container_name: security_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - auth-service
+      - analysis-service
+      - dvr-service
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  mongo_data:

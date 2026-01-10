@@ -1,46 +1,43 @@
 
 import React, { useState, useEffect } from 'react';
+import api from '../utils/api';
 
-const RecordingsView = ({ cameras, backendUrl }) => {
+const RecordingsView = ({ cameras }) => {
     const [selectedCamera, setSelectedCamera] = useState(null);
-    const [files, setFiles] = useState([]);
+    const [recordingsMap, setRecordingsMap] = useState({});
     const [selectedFile, setSelectedFile] = useState(null);
     const [loading, setLoading] = useState(false);
 
-    // Auto-select first camera if available
+    // Initial fetch of all recordings
     useEffect(() => {
-        if (cameras.length > 0 && !selectedCamera) {
-            setSelectedCamera(cameras[0].id);
-        }
-    }, [cameras]);
-
-    // Fetch files when camera changes
-    useEffect(() => {
-        if (selectedCamera !== null) {
+        const fetchRecordings = async () => {
             setLoading(true);
-            fetch(`${backendUrl}/recordings/${selectedCamera}/files`)
-                .then(res => res.json())
-                .then(data => {
-                    setFiles(data.files);
-                    setLoading(false);
-                    // Auto-select newest file if not currently playing something valid for this cam
-                    if (data.files.length > 0) {
-                        setSelectedFile(data.files[0]);
-                    } else {
-                        setSelectedFile(null);
-                    }
-                })
-                .catch(err => {
-                    console.error("Error loading recordings:", err);
-                    setLoading(false);
-                });
-        }
-    }, [selectedCamera, backendUrl]);
+            try {
+                const data = await api.dvr.get('/recordings');
+                setRecordingsMap(data.recordings || {});
+
+                // Auto-select first camera if not selected
+                if (Object.keys(data.recordings).length > 0 && !selectedCamera) {
+                    setSelectedCamera(Object.keys(data.recordings)[0]);
+                }
+            } catch (err) {
+                console.error("Error loading recordings:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchRecordings();
+        const interval = setInterval(fetchRecordings, 10000); // Check for new files every 10s
+        return () => clearInterval(interval);
+    }, []);
+
+    const files = selectedCamera ? (recordingsMap[selectedCamera] || []) : [];
 
     return (
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
-            {/* Camera Selection - Horizontal Scroll */}
+            {/* Camera Selection */}
             <div style={{
                 display: 'flex',
                 gap: '1rem',
@@ -50,44 +47,26 @@ const RecordingsView = ({ cameras, backendUrl }) => {
                 borderRadius: '12px',
                 scrollbarWidth: 'thin'
             }}>
-                {cameras.map(cam => (
+                {Object.keys(recordingsMap).map(camId => (
                     <button
-                        key={cam.id}
-                        onClick={() => setSelectedCamera(cam.id)}
+                        key={camId}
+                        onClick={() => {
+                            setSelectedCamera(camId);
+                            setSelectedFile(null);
+                        }}
                         style={{
                             padding: '1rem 2rem',
                             borderRadius: '8px',
-                            border: selectedCamera === cam.id ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
+                            border: selectedCamera === camId ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
                             background: 'rgba(20, 21, 25, 0.8)',
                             color: 'white',
                             cursor: 'pointer',
-                            minWidth: '150px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '0.5rem'
+                            minWidth: '150px'
                         }}
                     >
-                        <span style={{ fontSize: '1.2rem' }}>📷</span>
-                        <span style={{ fontWeight: '600' }}>{cam.name}</span>
+                        <span style={{ fontWeight: '600' }}>Camera {camId}</span>
                     </button>
                 ))}
-                {/* Master Recording Option */}
-                <button
-                    onClick={() => setSelectedCamera('master')}
-                    style={{
-                        padding: '1rem 2rem',
-                        borderRadius: '8px',
-                        border: selectedCamera === 'master' ? '2px solid #ff4444' : '1px solid rgba(255,255,255,0.1)',
-                        background: 'rgba(20, 21, 25, 0.8)',
-                        color: 'white',
-                        cursor: 'pointer',
-                        minWidth: '150px'
-                    }}
-                >
-                    <span style={{ fontSize: '1.2rem', display: 'block' }}>🎬</span>
-                    <span style={{ fontWeight: '600' }}>Master</span>
-                </button>
             </div>
 
             {/* Main Content Area */}
@@ -95,28 +74,20 @@ const RecordingsView = ({ cameras, backendUrl }) => {
                 display: 'flex',
                 gap: '1rem',
                 flex: 1,
-                minHeight: 0,
-                flexDirection: window.innerWidth <= 768 ? 'column' : 'row'
+                minHeight: 0
             }}>
 
                 {/* Video Player */}
                 <div style={{ flex: 2, background: 'black', borderRadius: '12px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {selectedFile ? (
                         <video
-                            key={selectedFile.name} // Force reload on change
+                            key={selectedFile}
                             controls
                             autoPlay
                             muted
                             playsInline
                             style={{ width: '100%', height: '100%', maxHeight: '600px' }}
-                            src={`${backendUrl}/recordings/serve/${selectedCamera === 'master' ? 'master' : selectedCamera}/${selectedFile.name}`}
-                            onLoadStart={() => console.log("Video requesting:", `${backendUrl}/recordings/serve/${selectedCamera === 'master' ? 'master' : selectedCamera}/${selectedFile.name}`)}
-                            onError={(e) => {
-                                console.error("Video error:", e);
-                                if (e.target.error) {
-                                    console.error("MediaError code:", e.target.error.code, "message:", e.target.error.message);
-                                }
-                            }}
+                            src={`${api.SERVICES.DVR}/stream/camera_${selectedCamera}/${selectedFile}`}
                         />
                     ) : (
                         <div style={{ color: 'rgba(255,255,255,0.5)' }}>Select a recording to play</div>
@@ -134,38 +105,28 @@ const RecordingsView = ({ cameras, backendUrl }) => {
                     flexDirection: 'column',
                     gap: '0.5rem'
                 }}>
-                    <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-secondary)' }}>
-                        {selectedCamera === 'master' ? 'Master Recordings' : 'Camera Recordings'}
-                    </h3>
+                    <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-secondary)' }}>Files</h3>
                     {loading ? (
                         <div>Loading...</div>
                     ) : files.length === 0 ? (
                         <div style={{ color: 'rgba(255,255,255,0.3)' }}>No recordings found</div>
                     ) : (
-                        files.map(file => (
+                        files.map(filename => (
                             <div
-                                key={file.name}
-                                onClick={() => setSelectedFile(file)}
+                                key={filename}
+                                onClick={() => setSelectedFile(filename)}
                                 style={{
                                     padding: '1rem',
                                     borderRadius: '8px',
-                                    background: selectedFile?.name === file.name ? 'rgba(0, 255, 128, 0.1)' : 'rgba(255,255,255,0.05)',
-                                    border: selectedFile?.name === file.name ? '1px solid var(--primary)' : 'none',
+                                    background: selectedFile === filename ? 'rgba(0, 255, 128, 0.1)' : 'rgba(255,255,255,0.05)',
+                                    border: selectedFile === filename ? '1px solid var(--primary)' : 'none',
                                     cursor: 'pointer',
                                     display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center'
+                                    justifyContent: 'space-between'
                                 }}
                             >
-                                <div>
-                                    <div style={{ fontWeight: '500', marginBottom: '4px' }}>
-                                        {new Date(file.timestamp * 1000).toLocaleString()}
-                                    </div>
-                                    <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>
-                                        {file.size_mb} MB
-                                    </div>
-                                </div>
-                                <div style={{ fontSize: '1.2rem', opacity: 0.5 }}>▶</div>
+                                <span style={{ fontSize: '0.85rem' }}>{filename}</span>
+                                <span style={{ opacity: 0.5 }}>▶</span>
                             </div>
                         ))
                     )}

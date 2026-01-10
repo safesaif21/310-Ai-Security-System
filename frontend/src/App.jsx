@@ -42,18 +42,19 @@ function Dashboard() {
   // Determine Backend URL dynamically
   // If loaded from localhost, use localhost. If network IP, use compatible IP.
   // Port 8040 is hardcoded for backend.
+  // Port 8040 is hardcoded for backend (Auth).
   const BACKEND_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8040`;
-  // const BACKEND_URL = 'http://localhost:8040';
 
   // Fetch initial data
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch cameras
-        const camerasData = await api.get('/cameras');
+        // Fetch cameras from Camera Service
+        const camerasData = await api.camera.get('/cameras');
         const camerasWithUrl = camerasData.cameras.map(cam => ({
           ...cam,
-          url: `${BACKEND_URL}${cam.url}`
+          // POINT TO ANALYSIS SERVICE FOR ANNOTATED FEED
+          url: `${api.SERVICES.ANALYSIS}/annotated/${cam.id}`
         }));
         setCameras(camerasWithUrl);
         setSystemStatus('ONLINE');
@@ -63,8 +64,8 @@ function Dashboard() {
       }
 
       try {
-        // Fetch models
-        const modelsData = await api.get('/models');
+        // Fetch models from Analysis Service
+        const modelsData = await api.analysis.get('/models');
         setModels(modelsData.models);
         setCurrentModel(modelsData.current_model);
         setDetectionEnabled(modelsData.detection_enabled);
@@ -76,13 +77,13 @@ function Dashboard() {
     fetchData();
   }, []);
 
-  // Poll for stats
+  // Poll for stats from Analysis Service
   useEffect(() => {
     let interval;
     if (detectionEnabled && camerasActive) {
       interval = setInterval(async () => {
         try {
-          const data = await api.get('/stats');
+          const data = await api.analysis.get('/stats');
           setStats({
             people_count: data.people_count,
             weapon_detected: data.weapon_detected,
@@ -93,7 +94,6 @@ function Dashboard() {
         }
       }, 500);
     } else {
-      // Reset stats when detection is off
       setStats(prev => ({ ...prev, people_count: 0, weapon_detected: false, threat_level: 0 }));
     }
 
@@ -102,38 +102,34 @@ function Dashboard() {
     };
   }, [detectionEnabled, camerasActive]);
 
-  // Poll for logs
+  // Poll for logs from DVR Service
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const data = await api.get('/logs');
+        const data = await api.dvr.get('/logs');
         setLogs(data.logs);
       } catch (error) {
         console.error('Error fetching logs:', error);
       }
     };
 
-    // Initial fetch
     fetchLogs();
-
-    // Poll every 2 seconds
     const interval = setInterval(fetchLogs, 2000);
-
     return () => clearInterval(interval);
   }, []);
 
-  // Monitor system status
+  // Monitor system status (Auth Service)
   useEffect(() => {
     const checkStatus = async () => {
       try {
-        await fetch(`${BACKEND_URL}/`);
+        await fetch(`${api.SERVICES.AUTH}/health`);
         setSystemStatus('ONLINE');
       } catch (error) {
         setSystemStatus('OFFLINE');
       }
     };
 
-    const interval = setInterval(checkStatus, 5000);
+    const interval = setInterval(checkStatus, 2000);
     return () => clearInterval(interval);
   }, []);
 
@@ -167,15 +163,12 @@ function Dashboard() {
         {currentView === 'recordings' && (
           <RecordingsView
             cameras={cameras}
-            backendUrl={BACKEND_URL}
             isSmartphone={isSmartphone}
           />
         )}
 
         {currentView === 'logs' && (
-          <LogsView
-            backendUrl={BACKEND_URL}
-          />
+          <LogsView />
         )}
       </main>
 

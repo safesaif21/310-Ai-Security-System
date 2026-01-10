@@ -14,12 +14,12 @@ const Sidebar = ({
     const loadModel = async (modelName) => {
         if (!modelName) return;
         try {
-            const data = await api.post(`/model/load?model_name=${encodeURIComponent(modelName)}`);
-            if (data.success) {
+            const data = await api.analysis.post(`/model/select?model_name=${encodeURIComponent(modelName)}`);
+            if (data.status === 'success') {
                 setCurrentModel(modelName);
                 setDetectionEnabled(true);
             } else {
-                alert(`Error: ${data.message || 'Unknown error'}`);
+                alert(`Error: ${data.detail || 'Unknown error'}`);
             }
         } catch (error) {
             console.error('Error loading model:', error);
@@ -34,8 +34,8 @@ const Sidebar = ({
         }
         try {
             const newState = !detectionEnabled;
-            const data = await api.post(`/detection/toggle?enabled=${newState}`);
-            if (data.success) {
+            const data = await api.analysis.post(`/detection/toggle?enabled=${newState}`);
+            if (data.status === 'success') {
                 setDetectionEnabled(newState);
             }
         } catch (error) {
@@ -76,58 +76,67 @@ const Sidebar = ({
                             <Target size={16} color="var(--primary)" />
                             YOLO Model Configuration
                         </h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.75rem',
+                            opacity: 0.6,
+                            pointerEvents: 'none',
+                            userSelect: 'none'
+                        }}>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 'bold', marginBottom: '-0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                <ShieldAlert size={12} /> CONFIGURATION LOCKED
+                            </div>
                             <select
                                 value={currentModel || ''}
-                                onChange={(e) => loadModel(e.target.value)}
+                                disabled
                                 style={{
                                     width: '100%',
                                     padding: '0.75rem',
-                                    background: 'var(--bg-dark)',
+                                    background: 'rgba(255,255,255,0.05)',
                                     border: '1px solid var(--border)',
                                     borderRadius: '0.5rem',
-                                    color: 'var(--text-main)',
+                                    color: 'var(--text-muted)',
                                     fontSize: '0.875rem',
                                     outline: 'none',
-                                    transition: 'all 0.2s',
-                                    cursor: 'pointer'
+                                    cursor: 'not-allowed'
                                 }}
                             >
-                                <option value="">Select a YOLO model...</option>
-                                {models.map(model => (
-                                    <option key={model.name} value={model.name}>
-                                        {model.name} ({model.size_mb} MB)
-                                    </option>
-                                ))}
+                                <option value={currentModel}>{currentModel} (Active)</option>
                             </select>
 
                             <button
                                 className={`btn ${detectionEnabled ? 'btn-danger' : 'btn-success'}`}
-                                onClick={toggleDetection}
-                                disabled={!currentModel}
-                                style={{ justifyContent: 'center', width: '100%' }}
+                                disabled
+                                style={{
+                                    justifyContent: 'center',
+                                    width: '100%',
+                                    filter: 'grayscale(0.8)',
+                                    cursor: 'not-allowed'
+                                }}
                             >
-                                {detectionEnabled ? 'Disable Detection' : 'Enable Detection'}
+                                {detectionEnabled ? 'Detection Persistent' : 'System Paused'}
                             </button>
 
                             <div style={{
                                 padding: '0.75rem',
                                 borderRadius: '0.5rem',
-                                background: detectionEnabled ? 'rgba(16, 185, 129, 0.1)' : 'rgba(156, 163, 175, 0.1)',
-                                border: `1px solid ${detectionEnabled ? 'rgba(16, 185, 129, 0.2)' : 'var(--border)'}`,
+                                background: 'rgba(16, 185, 129, 0.05)',
+                                border: '1px solid rgba(16, 185, 129, 0.1)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '0.5rem',
                                 fontSize: '0.75rem',
-                                color: detectionEnabled ? 'var(--success)' : 'var(--text-muted)'
+                                color: 'var(--success)'
                             }}>
                                 <div style={{
                                     width: '6px',
                                     height: '6px',
                                     borderRadius: '50%',
-                                    background: 'currentColor'
+                                    background: 'currentColor',
+                                    boxShadow: '0 0 5px var(--success)'
                                 }} />
-                                Status: {detectionEnabled ? 'Active' : 'Inactive'}
+                                Detection Status: Active
                             </div>
                         </div>
                     </div>
