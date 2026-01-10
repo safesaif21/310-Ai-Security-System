@@ -103,21 +103,31 @@ const LogsView = () => {
                         value={selectedDate}
                         onChange={(e) => setSelectedDate(e.target.value)}
                         style={{
-                            background: 'rgba(255,255,255,0.05)',
-                            color: 'white',
+                            background: '#1a1b26',
+                            color: '#ffffff',
                             border: '1px solid rgba(255,255,255,0.1)',
                             borderRadius: '6px',
                             padding: '0.4rem 0.8rem',
                             fontSize: '0.85rem',
                             outline: 'none',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            WebkitAppearance: 'none',
+                            MozAppearance: 'none',
+                            appearance: 'none',
+                            minWidth: '200px'
                         }}
                     >
                         {availableDates.length === 0 && selectedDate && (
-                            <option value={selectedDate}>{selectedDate} (Active)</option>
+                            <option value={selectedDate} style={{ background: '#1a1b26', color: 'white' }}>
+                                {selectedDate} (Active)
+                            </option>
                         )}
                         {availableDates.map((filename, idx) => (
-                            <option key={filename} value={filename}>
+                            <option
+                                key={filename}
+                                value={filename}
+                                style={{ background: '#1a1b26', color: 'white' }}
+                            >
                                 {filename} {idx === 0 ? '(Active)' : ''}
                             </option>
                         ))}
