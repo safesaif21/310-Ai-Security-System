@@ -70,6 +70,7 @@ def recording_loop(camera_id: int):
     frame_interval = 1.0 / TARGET_FPS
     last_frame_write = time.time()
     latest_frame = None
+    frame_count = 0
     
     while not stop_events.get(camera_id, threading.Event()).is_set():
         try:
