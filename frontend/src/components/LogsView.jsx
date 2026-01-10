@@ -6,14 +6,24 @@ const LogsView = () => {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
     const [availableDates, setAvailableDates] = useState([]);
-    const [selectedDate, setSelectedDate] = useState('Live'); // 'Live' or 'YYYY-MM-DD'
+    const [selectedDate, setSelectedDate] = useState(''); // Stores 'YYYY-MM-DD'
 
     // Fetch available log dates on mount
     useEffect(() => {
         const fetchDates = async () => {
             try {
                 const data = await api.dvr.get('/logs/dates');
-                setAvailableDates(data.dates || []);
+                const dates = data.dates || [];
+                setAvailableDates(dates);
+
+                // Default to latest date if not set
+                if (dates.length > 0 && !selectedDate) {
+                    setSelectedDate(dates[0]);
+                } else if (dates.length === 0) {
+                    // Fallback to today if no files found yet
+                    const today = new Date().toISOString().split('T')[0];
+                    setSelectedDate(today);
+                }
             } catch (err) {
                 console.error("Error fetching log dates:", err);
             }
@@ -21,9 +31,11 @@ const LogsView = () => {
         fetchDates();
     }, []);
 
-    // Effect for real-time logs (Live mode)
+    // Polling effect: only active when the selected date is the newest one (Live mode)
     useEffect(() => {
-        if (selectedDate !== 'Live') return;
+        if (!selectedDate || (availableDates.length > 0 && selectedDate !== availableDates[0])) {
+            return;
+        }
 
         const fetchLiveLogs = async () => {
             if (logs.length === 0) setLoading(true);
@@ -40,11 +52,13 @@ const LogsView = () => {
         fetchLiveLogs();
         const interval = setInterval(fetchLiveLogs, 2000);
         return () => clearInterval(interval);
-    }, [selectedDate, logs.length]);
+    }, [selectedDate, availableDates, logs.length]);
 
-    // Effect for historical logs
+    // History fetch effect: only active when an older date is selected
     useEffect(() => {
-        if (selectedDate === 'Live') return;
+        if (!selectedDate || (availableDates.length > 0 && selectedDate === availableDates[0])) {
+            return;
+        }
 
         const fetchHistoricalLogs = async () => {
             setLoading(true);
@@ -59,7 +73,7 @@ const LogsView = () => {
         };
 
         fetchHistoricalLogs();
-    }, [selectedDate]);
+    }, [selectedDate, availableDates.length]);
 
     const getLogColor = (type) => {
         switch (type?.toLowerCase()) {
@@ -99,14 +113,18 @@ const LogsView = () => {
                             cursor: 'pointer'
                         }}
                     >
-                        <option value="Live">Live Stream</option>
-                        {availableDates.map(date => (
-                            <option key={date} value={date}>{date}.txt</option>
+                        {availableDates.length === 0 && selectedDate && (
+                            <option value={selectedDate}>{selectedDate}.txt (Active)</option>
+                        )}
+                        {availableDates.map((date, idx) => (
+                            <option key={date} value={date}>
+                                {date}.txt {idx === 0 ? '(Active)' : ''}
+                            </option>
                         ))}
                     </select>
                 </div>
                 <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>
-                    {selectedDate === 'Live' ? 'Updating every 2s' : `${logs.length} archived events`}
+                    {availableDates.length > 0 && selectedDate === availableDates[0] ? 'Updating every 2s' : `${logs.length} archived events`}
                 </span>
             </div>
 
