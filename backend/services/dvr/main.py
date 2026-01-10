@@ -168,8 +168,18 @@ async def post_log_event(entry: LogEntry):
 
 @app.get("/logs")
 async def get_logs():
-    """Retrieve all logs for the frontend"""
-    return {"logs": log_manager.get_logs()}
+    """Retrieve recent logs for the prompt display"""
+    return {"logs": log_manager.get_logs(100)}
+
+@app.get("/logs/dates")
+async def get_log_dates():
+    """List all dates that have available log files"""
+    return {"dates": log_manager.get_available_dates()}
+
+@app.get("/logs/by-date/{date_str}")
+async def get_logs_by_date(date_str: str):
+    """Retrieve full logs for a specific date"""
+    return {"logs": log_manager.get_logs_by_date(date_str)}
 
 @app.get("/recordings")
 async def list_recordings():

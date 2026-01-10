@@ -79,6 +79,44 @@ class LogManager:
             logger.info(f"[{type.upper()}] {message}")
             self._write_to_file(entry)
 
-    def get_logs(self, limit: int = 50):
+    def get_logs(self, limit: int = 100):
         with self.lock:
             return self.logs[:limit]
+
+    def get_available_dates(self) -> List[str]:
+        """List all dates that have log files"""
+        try:
+            files = list(self.logs_folder.glob("*.txt"))
+            dates = [os.path.splitext(f.name)[0] for f in files]
+            return sorted(dates, reverse=True)
+        except Exception as e:
+            logger.error(f"Error listing log dates: {e}")
+            return []
+
+    def get_logs_by_date(self, date_str: str) -> List[dict]:
+        """Fetch logs from a specific file"""
+        historical_logs = []
+        try:
+            log_file = self.logs_folder / f"{date_str}.txt"
+            if log_file.exists():
+                with open(log_file, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                    for idx, line in enumerate(reversed(lines)):
+                        try:
+                            if "]" in line:
+                                parts = line.split("] ", 2)
+                                if len(parts) >= 3:
+                                    ts_raw = parts[0].strip("[")
+                                    lvl = parts[1].strip("[")
+                                    msg = parts[2].strip()
+                                    historical_logs.append({
+                                        "id": f"hist_{date_str}_{idx}",
+                                        "timestamp": f"{date_str} {ts_raw}",
+                                        "message": msg,
+                                        "type": lvl.lower()
+                                    })
+                        except: continue
+            return historical_logs
+        except Exception as e:
+            logger.error(f"Error reading logs for {date_str}: {e}")
+            return []

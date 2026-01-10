@@ -1,8 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Scroll, Bell, AlertTriangle, Info, CheckCircle } from 'lucide-react';
+import { Scroll, Bell, AlertTriangle, Info, CheckCircle, Calendar } from 'lucide-react';
+import api from '../utils/api';
 
-const LogsDropdown = ({ logs }) => {
+const LogsDropdown = ({ logs: realTimeLogs }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [view, setView] = useState('recent'); // 'recent' or 'historical'
+    const [availableDates, setAvailableDates] = useState([]);
+    const [selectedDate, setSelectedDate] = useState('');
+    const [historicalLogs, setHistoricalLogs] = useState([]);
+    const [loading, setLoading] = useState(false);
     const dropdownRef = useRef(null);
 
     useEffect(() => {
@@ -11,10 +17,45 @@ const LogsDropdown = ({ logs }) => {
                 setIsOpen(false);
             }
         };
-
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    const fetchDates = async () => {
+        try {
+            const data = await api.dvr.get('/logs/dates');
+            setAvailableDates(data.dates || []);
+            if (data.dates?.length > 0 && !selectedDate) {
+                setSelectedDate(data.dates[0]);
+            }
+        } catch (err) {
+            console.error("Error fetching log dates:", err);
+        }
+    };
+
+    const fetchHistoricalLogs = async (date) => {
+        setLoading(true);
+        try {
+            const data = await api.dvr.get(`/logs/by-date/${date}`);
+            setHistoricalLogs(data.logs || []);
+        } catch (err) {
+            console.error("Error fetching historical logs:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen && view === 'historical') {
+            fetchDates();
+        }
+    }, [isOpen, view]);
+
+    useEffect(() => {
+        if (selectedDate && view === 'historical') {
+            fetchHistoricalLogs(selectedDate);
+        }
+    }, [selectedDate, view]);
 
     const getIcon = (type) => {
         switch (type) {
@@ -26,15 +67,7 @@ const LogsDropdown = ({ logs }) => {
         }
     };
 
-    const getColor = (type) => {
-        switch (type) {
-            case 'warning': return 'var(--warning)';
-            case 'error': return 'var(--danger)';
-            case 'success': return 'var(--success)';
-            case 'detection': return 'var(--primary)';
-            default: return 'var(--text-muted)';
-        }
-    };
+    const displayLogs = view === 'recent' ? realTimeLogs : historicalLogs;
 
     return (
         <div className="logs-dropdown" ref={dropdownRef} style={{ position: 'relative' }}>
@@ -51,77 +84,74 @@ const LogsDropdown = ({ logs }) => {
                     gap: '0.5rem',
                     cursor: 'pointer',
                     fontSize: '0.875rem',
-                    fontWeight: 500,
-                    transition: 'all 0.2s'
+                    fontWeight: 500
                 }}
             >
                 <Scroll size={16} />
-                <span>System Logs</span>
-                {logs.length > 0 && (
-                    <span style={{
-                        background: 'var(--primary)',
-                        color: 'white',
-                        fontSize: '0.7rem',
-                        padding: '0.1rem 0.4rem',
-                        borderRadius: '1rem',
-                        marginLeft: '0.25rem'
-                    }}>
-                        {logs.length}
+                <span>Logs</span>
+                {realTimeLogs.length > 0 && view === 'recent' && (
+                    <span style={{ background: 'var(--primary)', color: 'white', fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '1rem' }}>
+                        {realTimeLogs.length}
                     </span>
                 )}
             </button>
 
             {isOpen && (
                 <div style={{
-                    position: 'absolute',
-                    top: '120%',
-                    right: 0,
-                    width: '350px',
-                    maxHeight: '400px',
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '0.75rem',
-                    boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
-                    zIndex: 100,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden'
+                    position: 'absolute', top: '120%', right: 0, width: '380px', maxHeight: '500px',
+                    background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '0.75rem',
+                    boxShadow: '0 10px 40px rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', flexDirection: 'column', overflow: 'hidden'
                 }}>
-                    <div style={{
-                        padding: '1rem',
-                        borderBottom: '1px solid var(--border)',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        background: 'rgba(0,0,0,0.2)'
-                    }}>
-                        <h3 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600 }}>Activity Log</h3>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Last 50 events</span>
+                    {/* Header with View Toggle */}
+                    <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)', display: 'flex', gap: '0.5rem' }}>
+                        <button
+                            onClick={() => setView('recent')}
+                            style={{
+                                flex: 1, padding: '0.4rem', borderRadius: '4px', border: 'none',
+                                background: view === 'recent' ? 'var(--primary)' : 'transparent',
+                                color: view === 'recent' ? 'white' : 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem'
+                            }}
+                        >
+                            Recent
+                        </button>
+                        <button
+                            onClick={() => setView('historical')}
+                            style={{
+                                flex: 1, padding: '0.4rem', borderRadius: '4px', border: 'none',
+                                background: view === 'historical' ? 'var(--primary)' : 'transparent',
+                                color: view === 'historical' ? 'white' : 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem'
+                            }}
+                        >
+                            History
+                        </button>
                     </div>
 
-                    <div style={{ overflowY: 'auto', flex: 1 }}>
-                        {logs.length === 0 ? (
-                            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                                No logs available
-                            </div>
+                    {/* Date Selector for Historical View */}
+                    {view === 'historical' && (
+                        <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Calendar size={14} color="var(--text-muted)" />
+                            <select
+                                value={selectedDate}
+                                onChange={(e) => setSelectedDate(e.target.value)}
+                                style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: '4px', color: 'white', padding: '0.2rem' }}
+                            >
+                                {availableDates.map(date => <option key={date} value={date}>{date}</option>)}
+                            </select>
+                        </div>
+                    )}
+
+                    <div style={{ overflowY: 'auto', flex: 1, minHeight: '300px' }}>
+                        {loading ? (
+                            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading logs...</div>
+                        ) : displayLogs.length === 0 ? (
+                            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No logs for this view</div>
                         ) : (
-                            logs.map((log) => (
-                                <div key={log.id} style={{
-                                    padding: '0.75rem 1rem',
-                                    borderBottom: '1px solid var(--border)',
-                                    display: 'flex',
-                                    gap: '0.75rem',
-                                    alignItems: 'flex-start',
-                                    fontSize: '0.875rem'
-                                }}>
+                            displayLogs.map((log) => (
+                                <div key={log.id} style={{ padding: '0.6rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', gap: '0.75rem', fontSize: '0.8rem' }}>
                                     <div style={{ marginTop: '2px' }}>{getIcon(log.type)}</div>
                                     <div style={{ flex: 1 }}>
-                                        <div style={{ marginBottom: '0.25rem', color: 'var(--text-main)' }}>
-                                            {log.message}
-                                        </div>
-                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                            {log.timestamp}
-                                        </div>
+                                        <div style={{ color: 'var(--text-main)', lineHeight: '1.4' }}>{log.message}</div>
+                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>{log.timestamp}</div>
                                     </div>
                                 </div>
                             ))

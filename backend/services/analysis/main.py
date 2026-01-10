@@ -153,16 +153,32 @@ def process_stream(camera_id: int):
                             label = "Person" if cls == 0 else result.names[cls].upper()
 
                             x1, y1, x2, y2 = map(int, box.xyxy[0])
-                            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                            cv2.putText(frame, f"{label} {conf:.2f}", (x1, y1 - 10), 
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 1) # Leaner lines
+                            cv2.putText(frame, f"{label} {conf:.2f}", (x1, y1 - 5), 
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1) # Smaller text
 
                     # Draw Overlays
-                    cv2.putText(frame, f"People: {people_count}", (10, 30), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                    cv2.putText(frame, f"People: {people_count}", (10, 25), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
                     if weapon_detected:
-                        cv2.putText(frame, "!!! THREAT DETECTED !!!", (10, 60), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                        cv2.putText(frame, "!!! THREAT !!!", (10, 45), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+
+                    # Add security-style timestamp overlay (Bottom Right)
+                    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    label = f"SAFE-CAM {camera_id} | {timestamp_str}"
+                    font = cv2.FONT_HERSHEY_DUPLEX
+                    font_scale = 0.35 # Very small and crisp
+                    thickness = 1
+                    
+                    (w_text, h_text), baseline = cv2.getTextSize(label, font, font_scale, thickness)
+                    h_img, w_img = frame.shape[:2]
+                    pos = (w_img - w_text - 15, h_img - 15)
+                    
+                    overlay = frame.copy()
+                    cv2.rectangle(overlay, (pos[0]-5, pos[1]-h_text-10), (pos[0]+w_text+10, pos[1]+10), (0, 0, 0), -1)
+                    cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
+                    cv2.putText(frame, label, pos, font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
 
                     # --- Persistent Logging Logic ---
                     now = time.time()

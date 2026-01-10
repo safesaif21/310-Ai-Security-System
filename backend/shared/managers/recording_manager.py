@@ -143,28 +143,6 @@ class RecordingManager:
                     if target_w and target_h:
                         frame = cv2.resize(frame, (target_w, target_h))
                     
-                    # Add security-style timestamp overlay
-                    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    label = f"SAFE-CAM {camera_id} | {timestamp_str}"
-                    font = cv2.FONT_HERSHEY_DUPLEX
-                    font_scale = 0.4 # Reduced size
-                    thickness = 1
-                    
-                    # Measure text for positioning and background
-                    (w_text, h_text), baseline = cv2.getTextSize(label, font, font_scale, thickness)
-                    
-                    # Position: Bottom-Right (15px padding)
-                    h, w = frame.shape[:2]
-                    pos = (w - w_text - 15, h - 15)
-                    
-                    # Draw semi-transparent background for text
-                    overlay = frame.copy()
-                    cv2.rectangle(overlay, (pos[0]-5, pos[1]-h_text-10), (pos[0]+w_text+10, pos[1]+10), (0, 0, 0), -1)
-                    cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
-                    
-                    # Draw the text
-                    cv2.putText(frame, label, pos, font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
-                    
                     # Write frame to ffmpeg stdin
                     self.writers[camera_id].stdin.write(frame.tobytes())
             except Exception as e:
