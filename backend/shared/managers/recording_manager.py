@@ -122,6 +122,8 @@ class RecordingManager:
             self._check_storage(camera_id)
             self.log_manager.add_log(f"Recording file created: {filename.name} ({width}x{height})", "info")
             logger.info(f"FFmpeg process started for cam {camera_id}, pid: {process.pid}")
+        except Exception as e:
+            logger.error(f"Error starting new recording file for camera {camera_id}: {e}")
 
     def write_frame(self, camera_id: int, frame):
         with self.lock:
