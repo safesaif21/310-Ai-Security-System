@@ -2,6 +2,10 @@
 
 import logging
 import os
+
+# Silence hardware warnings (NNPACK/PyTorch)
+os.environ['NNPACK_INFERENCE_MODE'] = '0'
+os.environ['TORCH_CPP_LOG_LEVEL'] = 'ERROR'
 import threading
 import time
 import requests
@@ -71,10 +75,6 @@ def process_stream(camera_id: int):
     stream_url = f"{CAMERA_SERVICE_URL}/camera/{camera_id}"
     logger.info(f"Connecting to raw stream: {stream_url}")
     
-    # Use a faster buffer setting
-    cap = cv2.VideoCapture(stream_url)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    
     if camera_id not in frame_events:
         frame_events[camera_id] = threading.Event()
 
@@ -85,114 +85,132 @@ def process_stream(camera_id: int):
     
     while not stop_events.get(camera_id, threading.Event()).is_set():
         try:
-            # --- HIGH FPS STREAMING: Read every frame ---
-            success, frame = cap.read()
-            if not success:
-                time.sleep(0.01) # Small sleep to avoid CPU hogging on fail
+            # Use requests for more robust network MJPEG streaming
+            # This avoids the "Expected boundary -- not found" OpenCV/FFmpeg errors 
+            # by manually decoding the JPEG delimiters in the byte stream
+            r = requests.get(stream_url, stream=True, timeout=10)
+            if r.status_code != 200:
+                logger.error(f"Failed to connect to cam {camera_id}: {r.status_code}")
+                time.sleep(2)
                 continue
-
-            frame_count += 1
             
-            # Update AI results every 6th frame (~5 updates per second)
-            if detection_enabled and frame_count % 6 == 0:
-                with model_lock:
-                     if current_model:
-                         last_results = current_model(
-                             frame, 
-                             verbose=False, 
-                             imgsz=320, 
-                             classes=TARGET_CLASSES,
-                             conf=0.50 
-                         )
-                         
-                # Only update counts when results change (every 6th frame)
-                new_people_count = 0
-                new_weapon_detected = False
-                for result in last_results:
-                    for box in result.boxes:
-                        cls = int(box.cls[0])
-                        if cls in TARGET_CLASSES:
-                            if cls == 0: new_people_count += 1
-                            else: new_weapon_detected = True
+            bytes_data = b""
+            # Process the raw chunked response
+            for chunk in r.iter_content(chunk_size=8192):
+                if stop_events.get(camera_id, threading.Event()).is_set():
+                    break
                 
-                people_count = new_people_count
-                weapon_detected = new_weapon_detected
-
-            # Draw Boxes EVERY frame using persistent last_results
-            for result in last_results:
-                for box in result.boxes:
-                    cls = int(box.cls[0])
-                    if cls not in TARGET_CLASSES: continue
+                bytes_data += chunk
+                while b"\xff\xd9" in bytes_data:
+                    a = bytes_data.find(b"\xff\xd8") # JPEG Start
+                    b = bytes_data.find(b"\xff\xd9") # JPEG End
+                    if a == -1 or b == -1:
+                        break
+                        
+                    jpg = bytes_data[a : b + 2]
+                    bytes_data = bytes_data[b + 2 :]
                     
-                    conf = float(box.conf[0])
-                    color = (0, 255, 0) if cls == 0 else (0, 0, 255)
-                    label = "Person" if cls == 0 else result.names[cls].upper()
+                    frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                    if frame is None:
+                        continue
 
-                    x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                    cv2.putText(frame, f"{label} {conf:.2f}", (x1, y1 - 10), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                    # --- AI PROCESSING: YOLO Inference ---
+                    frame_count += 1
+                    
+                    # Update AI results every 6th frame (~5 updates per second)
+                    if detection_enabled and frame_count % 6 == 0:
+                        with model_lock:
+                             if current_model:
+                                 last_results = current_model(
+                                     frame, 
+                                     verbose=False, 
+                                     imgsz=320, 
+                                     classes=TARGET_CLASSES,
+                                     conf=0.50 
+                                 )
+                                 
+                        # Only update counts when results change (every 6th frame)
+                        new_people_count = 0
+                        new_weapon_detected = False
+                        for result in last_results:
+                            for box in result.boxes:
+                                cls = int(box.cls[0])
+                                if cls in TARGET_CLASSES:
+                                    if cls == 0: new_people_count += 1
+                                    else: new_weapon_detected = True
+                        
+                        people_count = new_people_count
+                        weapon_detected = new_weapon_detected
 
-            # Draw Overlays
-            cv2.putText(frame, f"People: {people_count}", (10, 30), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            if weapon_detected:
-                cv2.putText(frame, "!!! THREAT DETECTED !!!", (10, 60), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                    # Draw Boxes EVERY frame using persistent last_results
+                    for result in last_results:
+                        for box in result.boxes:
+                            cls = int(box.cls[0])
+                            if cls not in TARGET_CLASSES: continue
+                            
+                            conf = float(box.conf[0])
+                            color = (0, 255, 0) if cls == 0 else (0, 0, 255)
+                            label = "Person" if cls == 0 else result.names[cls].upper()
 
-            # --- Persistent Logging Logic ---
-            now = time.time()
-            with stats_lock:
-                current_counts[camera_id] = people_count
-                current_weapons[camera_id] = weapon_detected
-                
-                if camera_id not in last_log_times:
-                    last_log_times[camera_id] = {"person": 0, "weapon": 0}
-                
-                # Person Logging
-                p_streak = people_streak.get(camera_id, 0)
-                if people_count > 0: p_streak += 1
-                else: p_streak = 0
-                people_streak[camera_id] = p_streak
-                
-                if p_streak == 5 and (now - last_log_times[camera_id]["person"] > 30):
-                    # Background logging
-                    threading.Thread(
-                        target=send_log, 
-                        args=(f"({people_count}) Person detected on Camera {camera_id}", "detection"),
-                        daemon=True
-                    ).start()
-                    last_log_times[camera_id]["person"] = now
-                
-                # Weapon Logging
-                w_streak = weapon_streak.get(camera_id, 0)
-                if weapon_detected: w_streak += 1
-                else: w_streak = 0
-                weapon_streak[camera_id] = w_streak
-                
-                if w_streak == 3 and (now - last_log_times[camera_id]["weapon"] > 60):
-                    # Use a background thread for logging to prevent network lag from tanking FPS
-                    threading.Thread(
-                        target=send_log, 
-                        args=(f"WEAPON DETECTED on Camera {camera_id}", "warning"),
-                        daemon=True
-                    ).start()
-                    last_log_times[camera_id]["weapon"] = now
+                            x1, y1, x2, y2 = map(int, box.xyxy[0])
+                            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                            cv2.putText(frame, f"{label} {conf:.2f}", (x1, y1 - 10), 
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
-            # Store Annotated Frame Immediately (Update Stream)
-            with frames_lock:
-                annotated_frames[camera_id] = frame
-            
-            frame_events[camera_id].set()
-            frame_events[camera_id].clear()
+                    # Draw Overlays
+                    cv2.putText(frame, f"People: {people_count}", (10, 30), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                    if weapon_detected:
+                        cv2.putText(frame, "!!! THREAT DETECTED !!!", (10, 60), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
-            # No sleep needed here, we want to match the camera's natural FPS
-            
+                    # --- Persistent Logging Logic ---
+                    now = time.time()
+                    with stats_lock:
+                        current_counts[camera_id] = people_count
+                        current_weapons[camera_id] = weapon_detected
+                        
+                        if camera_id not in last_log_times:
+                            last_log_times[camera_id] = {"person": 0, "weapon": 0}
+                        
+                        # Person Logging
+                        p_streak = people_streak.get(camera_id, 0)
+                        if people_count > 0: p_streak += 1
+                        else: p_streak = 0
+                        people_streak[camera_id] = p_streak
+                        
+                        if p_streak == 5 and (now - last_log_times[camera_id]["person"] > 30):
+                            threading.Thread(
+                                target=send_log, 
+                                args=(f"({people_count}) Person detected on Camera {camera_id}", "detection"),
+                                daemon=True
+                            ).start()
+                            last_log_times[camera_id]["person"] = now
+                        
+                        # Weapon Logging
+                        w_streak = weapon_streak.get(camera_id, 0)
+                        if weapon_detected: w_streak += 1
+                        else: w_streak = 0
+                        weapon_streak[camera_id] = w_streak
+                        
+                        if w_streak == 3 and (now - last_log_times[camera_id]["weapon"] > 60):
+                            threading.Thread(
+                                target=send_log, 
+                                args=(f"WEAPON DETECTED on Camera {camera_id}", "warning"),
+                                daemon=True
+                            ).start()
+                            last_log_times[camera_id]["weapon"] = now
+
+                    # Store Annotated Frame Immediately (Update Stream)
+                    with frames_lock:
+                        annotated_frames[camera_id] = frame
+                    
+                    frame_events[camera_id].set()
+                    frame_events[camera_id].clear()
+
         except Exception as e:
             logger.error(f"Analysis error cam {camera_id}: {e}")
             time.sleep(1)
-
-    cap.release()
 
 def generate_annotated_mjpeg(camera_id: int):
     """Serve Annotated MJPEG Stream"""
