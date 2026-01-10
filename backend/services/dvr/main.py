@@ -157,13 +157,21 @@ async def get_logs():
 
 @app.get("/logs/dates")
 async def get_log_dates():
-    """List all dates that have available log files"""
-    return {"dates": log_manager.get_available_dates()}
+    """List all available log files directly from the filesystem"""
+    log_dir = Path(settings.logs_folder)
+    if not log_dir.exists(): return {"dates": []}
+    
+    # Get all .txt files, sorted by newest first
+    files = sorted(log_dir.glob("*.txt"), key=os.path.getmtime, reverse=True)
+    # Return filenames (e.g., '2026-01-10.txt')
+    return {"dates": [f.name for f in files]}
 
 @app.get("/logs/by-date/{date_str}")
 async def get_logs_by_date(date_str: str):
-    """Retrieve full logs for a specific date"""
-    return {"logs": log_manager.get_logs_by_date(date_str)}
+    """Retrieve full logs for a specific date/file"""
+    # Clean up filename if provided with extension
+    clean_date = date_str.replace(".txt", "")
+    return {"logs": log_manager.get_logs_by_date(clean_date)}
 
 @app.get("/recordings")
 async def list_recordings():

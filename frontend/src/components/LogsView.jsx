@@ -114,11 +114,11 @@ const LogsView = () => {
                         }}
                     >
                         {availableDates.length === 0 && selectedDate && (
-                            <option value={selectedDate}>{selectedDate}.txt (Active)</option>
+                            <option value={selectedDate}>{selectedDate} (Active)</option>
                         )}
-                        {availableDates.map((date, idx) => (
-                            <option key={date} value={date}>
-                                {date}.txt {idx === 0 ? '(Active)' : ''}
+                        {availableDates.map((filename, idx) => (
+                            <option key={filename} value={filename}>
+                                {filename} {idx === 0 ? '(Active)' : ''}
                             </option>
                         ))}
                     </select>
