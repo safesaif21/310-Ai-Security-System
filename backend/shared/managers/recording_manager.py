@@ -118,7 +118,7 @@ class RecordingManager:
             self.current_files[camera_id] = filename
             
             self._check_storage(camera_id)
-        catch Exception as e:
+        except Exception as e:
             logger.error(f"Error starting new recording file for camera {camera_id}: {e}")
 
     def write_frame(self, camera_id: int, frame):
