@@ -23,5 +23,6 @@ COPY backend/services/analysis /app/backend/services/analysis
 COPY yolo_models /app/yolo_models
 
 ENV PYTHONPATH=/app
+ENV NNPACK_INFERENCE_MODE=0
 
 CMD ["uvicorn", "backend.services.analysis.main:app", "--host", "0.0.0.0", "--port", "8042"]

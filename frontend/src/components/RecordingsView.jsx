@@ -28,8 +28,14 @@ const RecordingsView = ({ cameras }) => {
         };
 
         fetchRecordings();
-        const interval = setInterval(fetchRecordings, 10000); // Check for new files every 10s
-        return () => clearInterval(interval);
+        // Removed setInterval to prevent scroll jumping
+    }, []);
+
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth <= 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
     }, []);
 
     const files = selectedCamera ? (recordingsMap[selectedCamera] || []) : [];
@@ -72,13 +78,24 @@ const RecordingsView = ({ cameras }) => {
             {/* Main Content Area */}
             <div className="recordings-content" style={{
                 display: 'flex',
+                flexDirection: isMobile ? 'column' : 'row',
                 gap: '1rem',
                 flex: 1,
-                minHeight: 0
+                minHeight: 0,
+                overflowY: isMobile ? 'auto' : 'hidden'
             }}>
 
                 {/* Video Player */}
-                <div style={{ flex: 2, background: 'black', borderRadius: '12px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{
+                    flex: isMobile ? 'none' : 2,
+                    height: isMobile ? '300px' : 'auto',
+                    background: 'black',
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}>
                     {selectedFile ? (
                         <video
                             key={selectedFile}
@@ -86,7 +103,7 @@ const RecordingsView = ({ cameras }) => {
                             autoPlay
                             muted
                             playsInline
-                            style={{ width: '100%', height: '100%', maxHeight: '600px' }}
+                            style={{ width: '100%', height: '100%' }}
                             src={`${api.SERVICES.DVR}/stream/camera_${selectedCamera}/${selectedFile}`}
                         />
                     ) : (
@@ -96,7 +113,8 @@ const RecordingsView = ({ cameras }) => {
 
                 {/* File List */}
                 <div style={{
-                    flex: 1,
+                    flex: isMobile ? 'none' : 1,
+                    minHeight: isMobile ? '200px' : 'auto',
                     background: 'rgba(20, 21, 25, 0.6)',
                     borderRadius: '12px',
                     padding: '1rem',
