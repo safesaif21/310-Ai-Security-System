@@ -9,15 +9,9 @@ const Controls = ({ camerasActive, setCamerasActive, detectionEnabled, recording
     };
 
     const toggleRecording = async () => {
-        try {
-            const newState = !recordingEnabled;
-            const data = await api.post(`/recording/toggle?enabled=${newState}`);
-            if (data.success) {
-                setRecordingEnabled(newState);
-            }
-        } catch (error) {
-            console.error('Error toggling recording:', error);
-        }
+        // Recording is now automatic via the DVR service polling the Analysis service.
+        // This button now acts as a manual refresh/status check.
+        console.log("Recording is automatically managed by the DVR service.");
     };
 
     return (

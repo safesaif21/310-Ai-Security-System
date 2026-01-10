@@ -266,6 +266,16 @@ async def startup_event():
     # Start persistent discovery
     threading.Thread(target=discovery_loop, daemon=True).start()
 
+@app.get("/status")
+async def get_status():
+    """Return status of processing for each camera"""
+    active_cameras = [cid for cid, event in stop_events.items() if not event.is_set()]
+    return {
+        "analyzing": active_cameras,
+        "detection_enabled": detection_enabled,
+        "model": os.path.basename(current_model.ckpt_path) if current_model else "none"
+    }
+
 @app.get("/annotated/{camera_id}")
 async def annotated_feed(camera_id: int):
     return StreamingResponse(generate_annotated_mjpeg(camera_id), 

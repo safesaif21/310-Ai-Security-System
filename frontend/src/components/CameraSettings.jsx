@@ -18,7 +18,7 @@ const CameraSettings = ({ camera, onClose }) => {
 
     const fetchSettings = async () => {
         try {
-            const data = await api.get(`/camera/${camera.id}/settings`);
+            const data = await api.camera.get(`/camera/${camera.id}/settings`);
             setSettings(data);
             setLoading(false);
         } catch (error) {
@@ -34,7 +34,8 @@ const CameraSettings = ({ camera, onClose }) => {
     const handleSave = async () => {
         setSaving(true);
         try {
-            await api.post(`/camera/${camera.id}/settings`, settings);
+            // Camera service uses PUT for settings
+            await api.camera.put(`/camera/${camera.id}/settings`, settings);
             onClose();
         } catch (error) {
             console.error('Error saving settings:', error);
