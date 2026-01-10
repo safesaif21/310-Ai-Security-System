@@ -147,14 +147,15 @@ class RecordingManager:
                     timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     label = f"SAFE-CAM {camera_id} | {timestamp_str}"
                     font = cv2.FONT_HERSHEY_DUPLEX
-                    font_scale = 0.5
+                    font_scale = 0.4 # Reduced size
                     thickness = 1
                     
-                    # Position: Top-Left
-                    pos = (15, 30)
-                    
-                    # Measure text for background rectangle
+                    # Measure text for positioning and background
                     (w_text, h_text), baseline = cv2.getTextSize(label, font, font_scale, thickness)
+                    
+                    # Position: Bottom-Right (15px padding)
+                    h, w = frame.shape[:2]
+                    pos = (w - w_text - 15, h - 15)
                     
                     # Draw semi-transparent background for text
                     overlay = frame.copy()
