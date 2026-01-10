@@ -29,7 +29,12 @@ ANALYSIS_SERVICE_URL = os.getenv("ANALYSIS_SERVICE_URL", "http://analysis-servic
 
 # Initialize managers
 log_manager = LogManager(settings.logs_folder)
-recording_manager = RecordingManager(log_manager, settings.recordings_folder, settings.recording_size_limit_gb)
+recording_manager = RecordingManager(
+    log_manager, 
+    settings.recordings_folder, 
+    settings.recording_size_limit_gb,
+    rotation_seconds=settings.recording_rotation_seconds
+)
 
 stop_events = {}
 recording_threads = {}

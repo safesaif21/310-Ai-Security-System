@@ -13,9 +13,10 @@ from typing import Dict, Optional
 logger = logging.getLogger(__name__)
 
 class RecordingManager:
-    def __init__(self, log_manager, base_folder: str = "recordings", max_size_gb: float = 1.0):
+    def __init__(self, log_manager, base_folder: str = "recordings", max_size_gb: float = 1.0, rotation_seconds: int = 180):
         self.base_folder = Path(base_folder)
         self.max_size_bytes = max_size_gb * 1024 * 1024 * 1024
+        self.rotation_seconds = rotation_seconds
         self.writers: Dict[int, subprocess.Popen] = {}
         self.start_times: Dict[int, float] = {}
         self.current_files: Dict[int, Path] = {}
@@ -127,8 +128,8 @@ class RecordingManager:
                 return
 
             try:
-                # auto-rotate files every 60 seconds
-                if time.time() - self.start_times[camera_id] >= 60:
+                # auto-rotate files
+                if time.time() - self.start_times[camera_id] >= self.rotation_seconds:
                     h, w = frame.shape[:2]
                     fps = self.camera_fps.get(camera_id, 30.0)
                     target_w, target_h = self.camera_dims.get(camera_id, (w, h))
