@@ -15,9 +15,34 @@ To test the entire microservices architecture on your development machine:
 
 ## 2. Distributed Deployment (Two Laptops)
 
-### Requirements
-*   **Node 1 (Server)**: Runs Auth, Analysis, Mongo.
-*   **Node 2 (Camera)**: Runs Camera Service.
+This setup allows you to run the heavy AI processing on one machine and the recording/camera logic on another.
+
+### Step 1: Network Prep
+Docker Compose requires a file named exactly **`.env`** (not `.env.docker`) in the root folder for IP interpolation to work.
+
+**Create a `.env` file on BOTH laptops:**
+```bash
+# Laptop A IP (Frontend/AI)
+FRONT_SERVER_IP=192.168.1.10
+
+# Laptop B IP (DVR/Cameras)
+BACK_SERVER_IP=192.168.1.20
+```
+
+### Step 2: Laptop B Setup (SECURITY-BACK)
+1. Run the DVR service:
+   ```bash
+   docker-compose -f docker-compose.security-back.yml up --build -d
+   ```
+2. Start the local cameras:
+   Run `start_camera.bat`
+
+### Step 3: Laptop A Setup (SECURITY-FRONT)
+1. Run the Frontend & AI:
+   ```bash
+   docker-compose -f docker-compose.security-front.yml up --build -d
+   ```
+2. Open `http://localhost` (on Laptop A) or `http://[FRONT_SERVER_IP]` from any device on your network.
 *   **Network**: Both must be on same LAN (Ethernet recommended).
 
 ### Step 1: Prepare Node 1 (Server)

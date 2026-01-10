@@ -6,12 +6,20 @@ const getBaseUrl = (port) => {
     return `http://${window.location.hostname}:${port}`;
 };
 
-export const SERVICES = {
-    AUTH: import.meta.env.VITE_AUTH_API_URL || getBaseUrl(8040),
-    CAMERA: import.meta.env.VITE_CAMERA_API_URL || getBaseUrl(8041),
-    ANALYSIS: import.meta.env.VITE_ANALYSIS_API_URL || getBaseUrl(8042),
-    DVR: import.meta.env.VITE_DVR_API_URL || getBaseUrl(8043),
+// Helper to clean up empty strings or undefined from env vars
+const getDefinedOrFallback = (envValue, fallback) => {
+    if (!envValue || envValue === "" || envValue === "undefined") return fallback;
+    return envValue;
 };
+
+export const SERVICES = {
+    AUTH: getDefinedOrFallback(import.meta.env.VITE_AUTH_API_URL, getBaseUrl(8040)),
+    CAMERA: getDefinedOrFallback(import.meta.env.VITE_CAMERA_API_URL, getBaseUrl(8041)),
+    ANALYSIS: getDefinedOrFallback(import.meta.env.VITE_ANALYSIS_API_URL, getBaseUrl(8042)),
+    DVR: getDefinedOrFallback(import.meta.env.VITE_DVR_API_URL, getBaseUrl(8043)),
+};
+
+console.log('Security System Service URLs:', SERVICES);
 
 /**
  * Get auth token from localStorage
