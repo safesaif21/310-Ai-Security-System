@@ -61,18 +61,17 @@ body {
 
 @media (max-width: 1024px) {
   body {
-    overflow-y: auto;
-    /* Allow scrolling on mobile */
-    height: auto;
-    min-height: 100dvh;
+    overflow: hidden; /* Lock body scrolling */
+    height: 100vh;    /* Fixed height viewport */
+    position: fixed;  /* Prevent bounce scroll on iOS */
+    width: 100%;
   }
 
   .app-container {
     display: flex;
     flex-direction: column;
-    height: auto;
-    min-height: 100dvh;
-    overflow: visible;
+    height: 100vh;
+    overflow: hidden;
   }
 
   /* Force scrollbar visibility on some mobile browsers if possible */
