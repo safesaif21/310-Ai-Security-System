@@ -62,16 +62,17 @@ body {
 @media (max-width: 1024px) {
   body {
     overflow-y: auto;
-    /* Re-enable native scrolling */
-    height: 100vh;
-    width: 100%;
+    /* Allow scrolling on mobile */
+    height: auto;
+    min-height: 100dvh;
   }
 
   .app-container {
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    overflow: hidden;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
   }
 
   /* Force scrollbar visibility on some mobile browsers if possible */

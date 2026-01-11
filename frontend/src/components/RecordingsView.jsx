@@ -82,8 +82,7 @@ const RecordingsView = ({ cameras }) => {
                 gap: '1rem',
                 flex: 1,
                 minHeight: 0,
-                // On mobile, keep the parent hidden so the video stays put and only the list scrolls
-                overflow: 'hidden'
+                overflowY: isMobile ? 'auto' : 'hidden'
             }}>
 
                 {/* Video Player */}
@@ -96,8 +95,11 @@ const RecordingsView = ({ cameras }) => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    // On mobile, this element stays fixed at the top of the flex column
-                    flexShrink: 0
+                    // Sticky positioning for mobile
+                    position: isMobile ? 'sticky' : 'relative',
+                    top: isMobile ? 0 : 'auto',
+                    zIndex: 10,
+                    boxShadow: isMobile ? '0 4px 12px rgba(0,0,0,0.5)' : 'none'
                 }}>
                     {selectedFile ? (
                         <video
@@ -116,12 +118,12 @@ const RecordingsView = ({ cameras }) => {
 
                 {/* File List */}
                 <div style={{
-                    flex: isMobile ? 1 : 1, // On mobile, take remaining height
-                    minHeight: 0, // Allow shrinking to fit
+                    flex: isMobile ? 'none' : 1,
+                    minHeight: isMobile ? '200px' : 'auto',
                     background: 'rgba(20, 21, 25, 0.6)',
                     borderRadius: '12px',
                     padding: '1rem',
-                    overflowY: 'auto', // Independent scrolling
+                    overflowY: 'auto',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '0.5rem'

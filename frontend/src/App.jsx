@@ -147,8 +147,7 @@ function Dashboard() {
         display: 'flex',
         flexDirection: 'column',
         gap: '1.5rem',
-        overflowY: 'auto', // Always allow vertical scrolling for content
-        flex: 1,
+        overflow: isMobile ? 'visible' : 'hidden',
         minHeight: 0
       }}>
         <Navigation currentView={currentView} onViewChange={setCurrentView} />
