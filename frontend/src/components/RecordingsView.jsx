@@ -94,12 +94,7 @@ const RecordingsView = ({ cameras }) => {
                     overflow: 'hidden',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    // Sticky positioning for mobile
-                    position: isMobile ? 'sticky' : 'relative',
-                    top: isMobile ? 0 : 'auto',
-                    zIndex: 10,
-                    boxShadow: isMobile ? '0 4px 12px rgba(0,0,0,0.5)' : 'none'
+                    justifyContent: 'center'
                 }}>
                     {selectedFile ? (
                         <video
@@ -119,7 +114,9 @@ const RecordingsView = ({ cameras }) => {
                 {/* File List */}
                 <div style={{
                     flex: isMobile ? 'none' : 1,
-                    minHeight: isMobile ? '200px' : 'auto',
+                    // Limit height on mobile so it doesn't push video off screen
+                    maxHeight: isMobile ? '50vh' : 'auto',
+                    minHeight: 0,
                     background: 'rgba(20, 21, 25, 0.6)',
                     borderRadius: '12px',
                     padding: '1rem',
