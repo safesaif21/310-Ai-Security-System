@@ -20,6 +20,31 @@ class LogManager:
             self.logs_folder.mkdir(parents=True)
             
         self._load_from_file()
+        
+        # Start date monitor thread
+        threading.Thread(target=self._monitor_date_change, daemon=True).start()
+
+    def _monitor_date_change(self):
+        """Monitor for day changes/rollover"""
+        while True:
+            try:
+                self._ensure_todays_log_file()
+                time.sleep(60)
+            except Exception as e:
+                logger.error(f"Error in date monitor: {e}")
+                time.sleep(60)
+
+    def _ensure_todays_log_file(self):
+        """Ensure the log file for today exists"""
+        try:
+            today = datetime.now().strftime("%Y-%m-%d")
+            log_file = self.logs_folder / f"{today}.txt"
+            if not log_file.exists():
+                with open(log_file, "w", encoding="utf-8") as f:
+                    f.write(f"--- Log Start {today} ---\n")
+                logger.info(f"Initialized new daily log file: {log_file.name}")
+        except Exception as e:
+            logger.error(f"Error creating daily log file: {e}")
 
     def _load_from_file(self):
         """Load recent logs from the latest file to populate memory"""
