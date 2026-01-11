@@ -58,62 +58,64 @@ app.add_middleware(
 app.mount("/stream", StaticFiles(directory=settings.recordings_folder), name="recordings")
 
 def recording_loop(camera_id: int):
-    """Consume annotated stream and save to disk with fixed FPS for real-time accuracy"""
+    """Consume annotated stream via custom MJPEG parser"""
     stream_url = f"{ANALYSIS_SERVICE_URL}/annotated/{camera_id}"
     logger.info(f"Connecting to annotated stream: {stream_url}")
     log_manager.add_log(f"DVR starting recording for camera {camera_id}", "info")
     
-    cap = cv2.VideoCapture(stream_url)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    
     TARGET_FPS = 15.0
     frame_interval = 1.0 / TARGET_FPS
     last_frame_write = time.time()
-    latest_frame = None
     
     while not stop_events.get(camera_id, threading.Event()).is_set():
         try:
-            if not cap.isOpened():
-                time.sleep(2)
-                cap = cv2.VideoCapture(stream_url)
-                continue
-
-            # Read as fast as possible to keep buffer clean
-            success, frame = cap.read()
-            if success:
-                latest_frame = frame
-
-            # Ensure recording is initialized
-            if not recording_manager.recording_started.get(camera_id):
-                if latest_frame is not None:
-                    h, w = latest_frame.shape[:2]
-                    recording_manager.start_recording(camera_id, w, h, TARGET_FPS)
-                    last_frame_write = time.time()
-                else:
-                    time.sleep(0.1)
+            # Use requests with stream=True for manual MJPEG parsing
+            # This bypasses OpenCV's internal ffmpeg demuxer which is failing
+            with requests.get(stream_url, stream=True, timeout=10) as r:
+                if r.status_code != 200:
+                    logger.error(f"Stream error {r.status_code}")
+                    time.sleep(2)
                     continue
-            
-            # Control writing speed to match EXACTLY target_fps
-            current_time = time.time()
-            if current_time - last_frame_write >= frame_interval:
-                if latest_frame is not None:
-                    recording_manager.write_frame(camera_id, latest_frame)
-                
-                # Update last_frame_write by the interval to prevent drift
-                last_frame_write += frame_interval
-                
-                # If we've fallen too far behind (e.g. system stall), snap to current time
-                if current_time - last_frame_write > 1.0:
-                    last_frame_write = current_time
-            else:
-                # Sleep a tiny bit to avoid CPU 100%
-                time.sleep(0.005)
+
+                bytes_data = b""
+                for chunk in r.iter_content(chunk_size=4096):
+                    if stop_events.get(camera_id, threading.Event()).is_set():
+                        break
+                    
+                    bytes_data += chunk
+                    
+                    # Look for JPEG delimiters
+                    a = bytes_data.find(b'\xff\xd8')
+                    b = bytes_data.find(b'\xff\xd9')
+                    
+                    if a != -1 and b != -1:
+                        # Found a full frame
+                        jpg = bytes_data[a:b+2]
+                        bytes_data = bytes_data[b+2:]
+                        
+                        frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                        if frame is None: continue
+
+                        # Ensure recording is initialized
+                        if not recording_manager.recording_started.get(camera_id):
+                            h, w = frame.shape[:2]
+                            recording_manager.start_recording(camera_id, w, h, TARGET_FPS)
+                            last_frame_write = time.time()
+
+                        # Write at strict FPS
+                        current_time = time.time()
+                        if current_time - last_frame_write >= frame_interval:
+                            recording_manager.write_frame(camera_id, frame)
+                            last_frame_write += frame_interval
+                            
+                            # Prevent drift/lag
+                            if current_time - last_frame_write > 1.0:
+                                last_frame_write = current_time
 
         except Exception as e:
-            logger.error(f"DVR error cam {camera_id}: {e}")
-            time.sleep(1)
+            logger.error(f"DVR stream error cam {camera_id}: {e}")
+            time.sleep(2)
 
-    cap.release()
     recording_manager.stop_recording(camera_id)
     log_manager.add_log(f"DVR stopped recording for camera {camera_id}", "info")
 
