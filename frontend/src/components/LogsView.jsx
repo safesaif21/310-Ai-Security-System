@@ -122,20 +122,17 @@ const LogsView = () => {
                                 {selectedDate} (Active)
                             </option>
                         )}
-                        {availableDates.map((filename, idx) => (
+                        {availableDates.map((filename) => (
                             <option
                                 key={filename}
                                 value={filename}
                                 style={{ background: '#1a1b26', color: 'white' }}
                             >
-                                {filename} {idx === 0 ? '(Active)' : ''}
+                                {filename}
                             </option>
                         ))}
                     </select>
                 </div>
-                <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>
-                    {availableDates.length > 0 && selectedDate === availableDates[0] ? 'Updating every 2s' : `${logs.length} archived events`}
-                </span>
             </div>
 
             {/* Log Content */}
