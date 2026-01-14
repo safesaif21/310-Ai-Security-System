@@ -6,6 +6,8 @@ const CameraCard = ({ camera, active }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
+    // Stable stream ID to prevent reconnects on every render
+    const [streamId] = useState(Date.now());
 
     const handleLoad = () => {
         setLoading(false);
@@ -160,7 +162,7 @@ const CameraCard = ({ camera, active }) => {
                             </div>
                         )}
                         <img
-                            src={`${camera.url}?t=${Date.now()}`}
+                            src={`${camera.url}?t=${streamId}`}
                             alt={camera.name}
                             style={{
                                 width: '100%',
