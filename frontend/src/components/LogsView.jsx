@@ -38,10 +38,14 @@ const LogsView = () => {
         }
 
         const fetchLiveLogs = async () => {
+            // Only show loader on initial load, not polling updates
             if (logs.length === 0) setLoading(true);
             try {
                 const data = await api.dvr.get('/logs');
-                setLogs(data.logs || []);
+                // Filter memory logs to only show today's events to prevent overlap
+                const cleanDate = selectedDate.replace('.txt', '');
+                const filtered = (data.logs || []).filter(l => l.timestamp.startsWith(cleanDate));
+                setLogs(filtered);
             } catch (err) {
                 console.error("Error loading live logs:", err);
             } finally {
@@ -52,7 +56,7 @@ const LogsView = () => {
         fetchLiveLogs();
         const interval = setInterval(fetchLiveLogs, 2000);
         return () => clearInterval(interval);
-    }, [selectedDate, availableDates, logs.length]);
+    }, [selectedDate]); // Simplified dependencies to prevent stuck state
 
     // History fetch effect: only active when an older date is selected
     useEffect(() => {

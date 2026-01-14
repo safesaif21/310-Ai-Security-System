@@ -71,7 +71,7 @@ def recording_loop(camera_id: int):
         try:
             # Use requests with stream=True for manual MJPEG parsing
             # This bypasses OpenCV's internal ffmpeg demuxer which is failing
-            with requests.get(stream_url, stream=True, timeout=10) as r:
+            with requests.get(stream_url, stream=True, timeout=30) as r:
                 if r.status_code != 200:
                     logger.error(f"Stream error {r.status_code}")
                     time.sleep(2)
