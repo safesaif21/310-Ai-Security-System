@@ -52,11 +52,11 @@ const RecordingsView = ({
 
     // Restore scroll position once files are loaded
     useEffect(() => {
-        if (!hasRestored && files.length > 0 && listRef.current) {
+        if (!loading && !hasRestored && files.length > 0 && listRef.current) {
             listRef.current.scrollTop = scrollTop;
             setHasRestored(true);
         }
-    }, [files]);
+    }, [files, loading]);
 
 
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
