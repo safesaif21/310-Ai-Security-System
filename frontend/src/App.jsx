@@ -39,6 +39,10 @@ function Dashboard() {
   const [logs, setLogs] = useState([]);
   const [currentView, setCurrentView] = useState('interface');
 
+  // Persistent state for Recordings View
+  const [selectedRecordingCamera, setSelectedRecordingCamera] = useState(null);
+  const [selectedRecordingFile, setSelectedRecordingFile] = useState(null);
+
   // Determine Backend URL dynamically
   // If loaded from localhost, use localhost. If network IP, use compatible IP.
   // Port 8040 is hardcoded for backend.
@@ -164,6 +168,10 @@ function Dashboard() {
           <RecordingsView
             cameras={cameras}
             isSmartphone={isSmartphone}
+            selectedCamera={selectedRecordingCamera}
+            setSelectedCamera={setSelectedRecordingCamera}
+            selectedFile={selectedRecordingFile}
+            setSelectedFile={setSelectedRecordingFile}
           />
         )}
 

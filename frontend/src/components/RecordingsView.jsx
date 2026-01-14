@@ -2,10 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 
-const RecordingsView = ({ cameras }) => {
-    const [selectedCamera, setSelectedCamera] = useState(null);
+const RecordingsView = ({
+    cameras,
+    selectedCamera,
+    setSelectedCamera,
+    selectedFile,
+    setSelectedFile
+}) => {
+    // Local state only for data fetching
     const [recordingsMap, setRecordingsMap] = useState({});
-    const [selectedFile, setSelectedFile] = useState(null);
     const [loading, setLoading] = useState(false);
 
     // Initial fetch of all recordings
