@@ -160,7 +160,7 @@ const CameraCard = ({ camera, active }) => {
                             </div>
                         )}
                         <img
-                            src={camera.url}
+                            src={`${camera.url}?t=${Date.now()}`}
                             alt={camera.name}
                             style={{
                                 width: '100%',

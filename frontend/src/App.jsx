@@ -102,7 +102,7 @@ function Dashboard() {
         } catch (error) {
           console.error('Error fetching stats:', error);
         }
-      }, 500);
+      }, isSmartphone ? 2000 : 500); // Slower polling on mobile to unblock streams
     } else {
       setStats(prev => ({ ...prev, people_count: 0, weapon_detected: false, threat_level: 0 }));
     }
@@ -110,7 +110,7 @@ function Dashboard() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [detectionEnabled, camerasActive]);
+  }, [detectionEnabled, camerasActive, isSmartphone]);
 
   // Poll for logs from DVR Service
   useEffect(() => {
@@ -124,9 +124,9 @@ function Dashboard() {
     };
 
     fetchLogs();
-    const interval = setInterval(fetchLogs, 2000);
+    const interval = setInterval(fetchLogs, isSmartphone ? 5000 : 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isSmartphone]); // Re-run if device type changes
 
   // Monitor system status (Auth Service)
   useEffect(() => {
@@ -139,9 +139,9 @@ function Dashboard() {
       }
     };
 
-    const interval = setInterval(checkStatus, 5000);
+    const interval = setInterval(checkStatus, isSmartphone ? 10000 : 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isSmartphone]);
 
   return (
     <div className="app-container">
