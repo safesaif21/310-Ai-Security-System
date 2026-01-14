@@ -130,7 +130,7 @@ const RecordingsView = ({
                             muted
                             playsInline
                             style={{ width: '100%', height: '100%' }}
-                            src={`${api.SERVICES.DVR} /stream/camera_${selectedCamera}/${selectedFile}`}
+                            src={`${api.SERVICES.DVR}/stream/camera_${selectedCamera}/${selectedFile}`}
                         />
                     ) : (
                         <div style={{ color: 'rgba(255,255,255,0.5)' }}>Select a recording to play</div>
