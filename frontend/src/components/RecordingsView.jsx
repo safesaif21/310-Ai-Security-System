@@ -39,13 +39,6 @@ const RecordingsView = ({
         };
 
         fetchRecordings();
-
-        // Save scroll position on unmount
-        return () => {
-            if (listRef.current) {
-                setScrollTop(listRef.current.scrollTop);
-            }
-        };
     }, []);
 
     const files = selectedCamera ? (recordingsMap[selectedCamera] || []) : [];
@@ -145,6 +138,11 @@ const RecordingsView = ({
                 {/* File List */}
                 <div
                     ref={listRef}
+                    onScrollCapture={(e) => {
+                        if (hasRestored && !loading) {
+                            setScrollTop(e.target.scrollTop);
+                        }
+                    }}
                     style={{
                         flex: isMobile ? 'none' : 1,
                         // Limit height on mobile so it doesn't push video off screen
