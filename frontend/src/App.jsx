@@ -46,6 +46,9 @@ function Dashboard() {
   // Persistent state for Logs View
   const [selectedLogDate, setSelectedLogDate] = useState('');
 
+  // Persistent scroll position for Recordings View
+  const [recordingScrollTop, setRecordingScrollTop] = useState(0);
+
   // Determine Backend URL dynamically
   // If loaded from localhost, use localhost. If network IP, use compatible IP.
   // Port 8040 is hardcoded for backend.
@@ -175,6 +178,8 @@ function Dashboard() {
             setSelectedCamera={setSelectedRecordingCamera}
             selectedFile={selectedRecordingFile}
             setSelectedFile={setSelectedRecordingFile}
+            scrollTop={recordingScrollTop}
+            setScrollTop={setRecordingScrollTop}
           />
         )}
 

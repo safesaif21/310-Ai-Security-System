@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
 
 const RecordingsView = ({
@@ -7,11 +7,17 @@ const RecordingsView = ({
     selectedCamera,
     setSelectedCamera,
     selectedFile,
-    setSelectedFile
+    setSelectedFile,
+    scrollTop,
+    setScrollTop
 }) => {
     // Local state only for data fetching
     const [recordingsMap, setRecordingsMap] = useState({});
     const [loading, setLoading] = useState(false);
+
+    // Scroll restoration Logic
+    const listRef = useRef(null);
+    const [hasRestored, setHasRestored] = useState(false);
 
     // Initial fetch of all recordings
     useEffect(() => {
@@ -33,8 +39,25 @@ const RecordingsView = ({
         };
 
         fetchRecordings();
-        // Removed setInterval to prevent scroll jumping
+
+        // Save scroll position on unmount
+        return () => {
+            if (listRef.current) {
+                setScrollTop(listRef.current.scrollTop);
+            }
+        };
     }, []);
+
+    const files = selectedCamera ? (recordingsMap[selectedCamera] || []) : [];
+
+    // Restore scroll position once files are loaded
+    useEffect(() => {
+        if (!hasRestored && files.length > 0 && listRef.current) {
+            listRef.current.scrollTop = scrollTop;
+            setHasRestored(true);
+        }
+    }, [files]);
+
 
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
     useEffect(() => {
@@ -42,8 +65,6 @@ const RecordingsView = ({
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
-
-    const files = selectedCamera ? (recordingsMap[selectedCamera] || []) : [];
 
     return (
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -109,7 +130,7 @@ const RecordingsView = ({
                             muted
                             playsInline
                             style={{ width: '100%', height: '100%' }}
-                            src={`${api.SERVICES.DVR}/stream/camera_${selectedCamera}/${selectedFile}`}
+                            src={`${api.SERVICES.DVR} /stream/camera_${selectedCamera}/${selectedFile}`}
                         />
                     ) : (
                         <div style={{ color: 'rgba(255,255,255,0.5)' }}>Select a recording to play</div>
@@ -117,44 +138,49 @@ const RecordingsView = ({
                 </div>
 
                 {/* File List */}
-                <div style={{
-                    flex: isMobile ? 'none' : 1,
-                    // Limit height on mobile so it doesn't push video off screen
-                    maxHeight: isMobile ? '50vh' : 'auto',
-                    minHeight: 0,
-                    background: 'rgba(20, 21, 25, 0.6)',
-                    borderRadius: '12px',
-                    padding: '1rem',
-                    overflowY: 'auto',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.5rem'
-                }}>
+                <div
+                    ref={listRef}
+                    style={{
+                        flex: isMobile ? 'none' : 1,
+                        // Limit height on mobile so it doesn't push video off screen
+                        maxHeight: isMobile ? '50vh' : 'auto',
+                        minHeight: 0,
+                        background: 'rgba(20, 21, 25, 0.6)',
+                        borderRadius: '12px',
+                        padding: '1rem',
+                        overflowY: 'auto',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.5rem'
+                    }}
+                >
                     <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-secondary)' }}>Files</h3>
-                    {loading ? (
-                        <div>Loading...</div>
-                    ) : files.length === 0 ? (
-                        <div style={{ color: 'rgba(255,255,255,0.3)' }}>No recordings found</div>
-                    ) : (
-                        files.map(filename => (
-                            <div
-                                key={filename}
-                                onClick={() => setSelectedFile(filename)}
-                                style={{
-                                    padding: '1rem',
-                                    borderRadius: '8px',
-                                    background: selectedFile === filename ? 'rgba(0, 255, 128, 0.1)' : 'rgba(255,255,255,0.05)',
-                                    border: selectedFile === filename ? '1px solid var(--primary)' : 'none',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    justifyContent: 'space-between'
-                                }}
-                            >
-                                <span style={{ fontSize: '0.85rem' }}>{filename}</span>
-                                <span style={{ opacity: 0.5 }}>▶</span>
-                            </div>
-                        ))
-                    )}
+                    {
+                        loading ? (
+                            <div>Loading...</div>
+                        ) : files.length === 0 ? (
+                            <div style={{ color: 'rgba(255,255,255,0.3)' }}>No recordings found</div>
+                        ) : (
+                            files.map(filename => (
+                                <div
+                                    key={filename}
+                                    onClick={() => setSelectedFile(filename)}
+                                    style={{
+                                        padding: '1rem',
+                                        borderRadius: '8px',
+                                        background: selectedFile === filename ? 'rgba(0, 255, 128, 0.1)' : 'rgba(255,255,255,0.05)',
+                                        border: selectedFile === filename ? '1px solid var(--primary)' : 'none',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        justifyContent: 'space-between'
+                                    }}
+                                >
+                                    <span style={{ fontSize: '0.85rem' }}>{filename}</span>
+                                    <span style={{ opacity: 0.5 }}>▶</span>
+                                </div>
+                            ))
+                        )
+                    }
                 </div>
             </div>
         </div>
