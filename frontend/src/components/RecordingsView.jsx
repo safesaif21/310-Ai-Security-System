@@ -53,7 +53,12 @@ const RecordingsView = ({
     // Restore scroll position once files are loaded
     useEffect(() => {
         if (!loading && !hasRestored && files.length > 0 && listRef.current) {
-            listRef.current.scrollTop = scrollTop;
+            // Small delay to ensure DOM has rendered the full list height
+            setTimeout(() => {
+                if (listRef.current) {
+                    listRef.current.scrollTop = scrollTop;
+                }
+            }, 100);
             setHasRestored(true);
         }
     }, [files, loading]);
