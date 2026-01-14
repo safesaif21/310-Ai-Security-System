@@ -2,11 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 
-const LogsView = () => {
+const LogsView = ({ selectedDate, setSelectedDate }) => {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
     const [availableDates, setAvailableDates] = useState([]);
-    const [selectedDate, setSelectedDate] = useState(''); // Stores 'YYYY-MM-DD'
+    // selectedDate state is now managed by parent
 
     // Fetch available log dates on mount
     useEffect(() => {

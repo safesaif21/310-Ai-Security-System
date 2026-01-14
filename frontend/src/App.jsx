@@ -43,6 +43,9 @@ function Dashboard() {
   const [selectedRecordingCamera, setSelectedRecordingCamera] = useState(null);
   const [selectedRecordingFile, setSelectedRecordingFile] = useState(null);
 
+  // Persistent state for Logs View
+  const [selectedLogDate, setSelectedLogDate] = useState('');
+
   // Determine Backend URL dynamically
   // If loaded from localhost, use localhost. If network IP, use compatible IP.
   // Port 8040 is hardcoded for backend.
@@ -176,7 +179,10 @@ function Dashboard() {
         )}
 
         {currentView === 'logs' && (
-          <LogsView />
+          <LogsView
+            selectedDate={selectedLogDate}
+            setSelectedDate={setSelectedLogDate}
+          />
         )}
       </main>
 
