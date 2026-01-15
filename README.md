@@ -45,8 +45,10 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
+after you set up the requirements.txt, you can do this next time:
 ```bash
-cd ~
+cd ~/310-Ai-Security-System
+source backend/services/camera/venv/bin/activate
 python -m backend.services.camera.main
 ```
 
