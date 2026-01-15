@@ -55,24 +55,28 @@ function Dashboard() {
   // Port 8040 is hardcoded for backend (Auth).
   const BACKEND_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8040`;
 
-  // Fetch initial data
+  // Fetch initial data and poll for cameras if missing
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchCameras = async () => {
       try {
         // Fetch cameras from Camera Service
         const camerasData = await api.camera.get('/cameras');
-        const camerasWithUrl = camerasData.cameras.map(cam => ({
-          ...cam,
-          // POINT TO ANALYSIS SERVICE FOR ANNOTATED FEED
-          url: `${api.SERVICES.ANALYSIS}/annotated/${cam.id}`
-        }));
-        setCameras(camerasWithUrl);
-        setSystemStatus('ONLINE');
+        if (camerasData.cameras && camerasData.cameras.length > 0) {
+          const camerasWithUrl = camerasData.cameras.map(cam => ({
+            ...cam,
+            // POINT TO ANALYSIS SERVICE FOR ANNOTATED FEED
+            url: `${api.SERVICES.ANALYSIS}/annotated/${cam.id}`
+          }));
+          setCameras(camerasWithUrl);
+          setSystemStatus('ONLINE');
+        }
       } catch (error) {
         console.error('Error fetching cameras:', error);
         setSystemStatus('OFFLINE');
       }
+    };
 
+    const fetchModels = async () => {
       try {
         // Fetch models from Analysis Service
         const modelsData = await api.analysis.get('/models');
@@ -84,8 +88,20 @@ function Dashboard() {
       }
     };
 
-    fetchData();
-  }, []);
+    // Initial load
+    fetchCameras();
+    fetchModels();
+
+    // Retry loop: If no cameras are found, keep looking every 10 seconds
+    // This handles the case where the frontend starts before the camera server
+    const interval = setInterval(() => {
+      if (cameras.length === 0) {
+        fetchCameras();
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [cameras.length]); // Re-evaluate if camera count changes
 
   // Poll for stats from Analysis Service
   useEffect(() => {
