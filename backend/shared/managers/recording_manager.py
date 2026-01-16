@@ -49,7 +49,6 @@ class RecordingManager:
                     size = oldest.stat().st_size
                     oldest.unlink()
                     total_size -= size
-                    self.log_manager.add_log(f"Deleted old recording: {oldest.name} (storage limit)", "info")
                 except Exception as e:
                     logger.error(f"Error deleting file {oldest}: {e}")
         except Exception as e:
